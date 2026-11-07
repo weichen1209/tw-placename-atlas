@@ -110,6 +110,11 @@ def render_text(text: str, st: atlas.CharStats, reps: List[atlas.Place]) -> str:
     return "".join(out)
 
 
+def plain_text(text: str, st: atlas.CharStats) -> str:
+    """數字標記換成數字的純文字，給網頁說明（meta description）用。"""
+    return re.sub(r"\{\{([^{}]*)\}\}", lambda m: atlas.eval_placeholder(m.group(1), st)[0] or "", text)
+
+
 def paragraphs(sec, st, reps) -> str:
     if not sec:
         return ""
@@ -224,7 +229,7 @@ def build_zi(doc: atlas.Doc, docs_by_char: Dict[str, atlas.Doc], out: Path) -> N
         cards="".join(cards), extra_section=extra_html, related_section=related_html,
         src_url=src_url, created=esc(doc.get("建立")), updated=esc(doc.get("更新")))
     page(out / "zi" / f"{doc.char}.html", "../", f"{doc.char}：{doc.get('標題')}｜臺灣地名用字地圖",
-         doc.get("摘要").replace("{{", "").replace("}}", ""), body, "", "page-zi",
+         plain_text(doc.get("摘要"), st), body, "", "page-zi",
          '<script src="../assets/zi.js" defer></script>')
     data = {}
     for p in st.hits:
@@ -288,6 +293,12 @@ def build_rank(docs: List[atlas.Doc], out: Path) -> None:
          body, "rank", "page-rank")
 
 
+def merge_example(places) -> str:
+    """跨最多村里合併成一處的聚落，給關於頁說明合併方式。"""
+    p = max(places, key=lambda p: (len(p.more_villages), -int(p.pid[1:])))
+    return f"{esc(p.county + p.town)}有{len(p.more_villages) + 1}個村里都登記了「{esc(p.name)}」"
+
+
 def build_about(docs: List[atlas.Doc], out: Path) -> None:
     places = atlas.load_places()
     log_html = []
@@ -303,7 +314,7 @@ def build_about(docs: List[atlas.Doc], out: Path) -> None:
         n_xy=atlas.fmt_int(sum(p.has_xy for p in places)),
         n_meaning=atlas.fmt_int(sum(p.has_meaning for p in places)),
         sha=atlas.file_sha256(atlas.RAW_CSV)[:12], repo=atlas.REPO_URL, log="".join(log_html),
-        min_places=atlas.MIN_PLACES)
+        min_places=atlas.MIN_PLACES, merge_example=merge_example(places))
     page(out / "about.html", "", "關於與規則｜臺灣地名用字地圖", "資料來源、計算方式、頁面怎麼產生，以及給AI的規則。",
          body, "about", "page-about")
 

@@ -105,7 +105,7 @@ p { margin: 0 0 1em; }
 .tile-top { display: flex; align-items: flex-end; gap: 0.6rem; margin-bottom: 0.35rem; }
 .tile .tzg { width: 3.4rem; font-size: 2.5rem; border-width: 1.5px; }
 .tile-text { display: grid; line-height: 1.35; }
-.tile-title { font-size: var(--step--1); color: var(--ink-2); }
+.tile-title { font-size: var(--step--1); color: var(--ink-2); text-wrap: balance; }
 .tile-count { font-size: var(--step--1); color: var(--pencil); }
 .tile-map { position: relative; display: block; aspect-ratio: 764 / 1044; border-top: 1.5px solid var(--grid-faint); }
 .tile-map img { position: absolute; inset: 0; width: 100%; height: 100%; }

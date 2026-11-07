@@ -3,6 +3,7 @@
 用法：
   python3 tools/prepare.py 窩              # 印在畫面上
   python3 tools/prepare.py 窩 --out packs/窩.md
+  python3 tools/prepare.py 窩 --all --out packs/窩.md   # 第5節列出全部候選，不限每縣市6處
 """
 from __future__ import annotations
 
@@ -38,32 +39,42 @@ def theme_words(st: atlas.CharStats, n: int, top: int):
     return [(g, k) for g, k in c.most_common(top) if k >= 3]
 
 
-def pick_candidates(st: atlas.CharStats):
-    pool = [p for p in st.hits if p.has_meaning and "?" not in p.name and "？" not in p.name]
+def pick_candidates(st: atlas.CharStats, show_all: bool = False):
+    pool = [p for p in st.hits if p.has_meaning and not atlas.is_garbled(p.name) and not atlas.is_garbled(p.village)]
+    # 由來裡的「窩」如果只是地名的一部分（例如大窩、五結鄉），不算有解釋這個字
+    names = sorted({p.name for p in st.hits if len(p.name) > len(st.char)}
+                   | {t for t in atlas.town_names() if st.char in t}, key=len, reverse=True)
+    name_re = re.compile("|".join(map(re.escape, names))) if names else None
+    strong_re = re.compile(re.escape(st.char) + r"[」』]?(?:字|者|，|,|是|指|為|即|乃|意|係|：|:|，即)")
 
     def score(p):
         text = "".join(m for m, _ in p.real_meanings)
-        explains = st.char in text.replace(p.name, "")
-        return (not explains, -min(len(text), 160), p.pid)
+        bare = name_re.sub("〇", text) if name_re else text
+        strong = bool(strong_re.search(bare))
+        explains = st.char in bare
+        return (not strong, not explains, -min(len(text), 160), p.pid)
 
     by_county = {}
     for p in sorted(pool, key=score):
         by_county.setdefault(p.county, []).append(p)
     order = sorted(by_county, key=lambda c: (-st.by_county[c], atlas.COUNTIES.index(c)))
-    chosen = []
-    for c in order:                      # 每個縣市先放一處
-        chosen.append(by_county[c][0])
-    for c in order:                      # 再依縣市數量補到每縣市最多 PER_COUNTY 處
-        for p in by_county[c][1:PER_COUNTY]:
-            if len(chosen) >= MAX_CANDIDATES:
-                break
-            chosen.append(p)
-    chosen = chosen[:MAX_CANDIDATES]
+    if show_all:
+        chosen = list(pool)
+    else:
+        chosen = []
+        for c in order:                      # 每個縣市先放一處
+            chosen.append(by_county[c][0])
+        for c in order:                      # 再依縣市數量補到每縣市最多 PER_COUNTY 處
+            for p in by_county[c][1:PER_COUNTY]:
+                if len(chosen) >= MAX_CANDIDATES:
+                    break
+                chosen.append(p)
+        chosen = chosen[:MAX_CANDIDATES]
     chosen.sort(key=lambda p: (order.index(p.county), score(p)))
     return pool, chosen
 
 
-def build_pack(char: str) -> str:
+def build_pack(char: str, show_all: bool = False) -> str:
     st = atlas.char_stats(char)
     total_all = len(atlas.load_places())
     sha = atlas.file_sha256(atlas.RAW_CSV)[:12]
@@ -71,8 +82,8 @@ def build_pack(char: str) -> str:
     w = out.append
     w(f"# 資料包：{char}")
     w("")
-    w(f"- 資料：內政部「臺灣地區地名資料_聚落類」2026-09-24版（SHA-256前12碼 {sha}），同一村里同名的紀錄已合併。")
-    w(f"- 產生方式：python3 tools/prepare.py {char}")
+    w(f"- 資料：內政部「臺灣地區地名資料_聚落類」2026-09-24版（SHA-256前12碼{sha}）；同名紀錄照AGENTS.md第2節合併，共{atlas.fmt_int(total_all)}處。")
+    w(f"- 產生方式：python3 tools/prepare.py {char}{' --all' if show_all else ''}")
     w("- 數字只能用數字標記寫進內容檔（建置時才換成數字），不要把表格裡的數字直接抄進去。")
     w("- 引號「」裡的由來要從第5節逐字複製；原文的「」改成『』。")
     w("")
@@ -88,7 +99,12 @@ def build_pack(char: str) -> str:
     w(f"| {{{{占全部}}}} | {atlas.fmt_pct(st.total / total_all)} | {atlas.PH_HELP['占全部']} |")
     w(f"| {{{{有由來}}}} | {atlas.fmt_int(st.with_meaning)} | {atlas.PH_HELP['有由來']} |")
     w(f"| {{{{有座標}}}} | {atlas.fmt_int(st.with_xy)} | {atlas.PH_HELP['有座標']} |")
+    w(f"| {{{{缺字}}}} | {atlas.fmt_int(st.missing)} | {atlas.PH_HELP['缺字']} |")
     w("")
+    if st.missing >= atlas.MISSING_NOTE_MIN and st.missing / st.total >= atlas.MISSING_NOTE_RATIO:
+        w(f"注意：{{{{缺字}}}}占{{{{總數}}}}的{atlas.fmt_pct(st.missing / st.total)}，"
+          "這個字的數量可能偏少；分布段要用{{缺字}}說明（AGENTS.md第6節）。")
+        w("")
     allowed = st.allowed_counties()
     w("## 2. 各縣市")
     w("")
@@ -117,8 +133,15 @@ def build_pack(char: str) -> str:
         words = theme_words(st, n, 15)
         w(f"- {n}個字：" + ("、".join(f"{g}（{k}）" for g, k in words) if words else "無"))
     w("")
-    pool, chosen = pick_candidates(st)
-    w(f"## 5. 候選代表地名（有官方由來的{len(pool)}處裡列出{len(chosen)}處）")
+    pool, chosen = pick_candidates(st, show_all)
+    skipped = st.with_meaning - len(pool)
+    w(f"## 5. 候選代表地名（列出{len(chosen)}處）")
+    w("")
+    w(f"有官方由來的{{{{有由來}}}}是{atlas.fmt_int(st.with_meaning)}處"
+      + (f"，扣掉地名或村里有缺字（?）、不能當代表地名的{skipped}處，可選的有{len(pool)}處。" if skipped
+         else f"，都可以當代表地名。")
+      + ("這裡全部列出。" if show_all or len(chosen) == len(pool)
+         else f"這裡每個縣市最多列{PER_COUNTY}處，由來有解釋這個字的排前面；要看全部，加上--all重新產生。"))
     w("")
     w("內容檔的代表地名照「- P編號 地名（縣市鄉鎮）」抄寫，例如「- "
       f"{chosen[0].pid} {chosen[0].name}（{chosen[0].loc}）」。" if chosen else "沒有可用的代表地名。")
@@ -132,7 +155,8 @@ def build_pack(char: str) -> str:
         w(f"- {p.pid}｜{p.name}｜{p.full_loc}")
         for m, src in p.real_meanings:
             text = re.sub(r"\n+", "／", m)
-            w(f"  - 由來（{src}）：{text}")
+            note = "，有缺字?，含?的片段不要引用" if atlas.is_garbled(m) else ""
+            w(f"  - 由來（{src}{note}）：{text}")
     w("")
     return "\n".join(out)
 
@@ -141,11 +165,12 @@ def main():
     ap = argparse.ArgumentParser(description="產生一個字的資料包")
     ap.add_argument("char", help="要做的字，例如 窩")
     ap.add_argument("--out", help="寫到檔案，不指定就印在畫面上")
+    ap.add_argument("--all", action="store_true", help="第5節列出全部候選代表地名")
     args = ap.parse_args()
     char = args.char.strip()
     if not char or not all(atlas.HAN_RE.fullmatch(c) for c in char) or len(char) > 2:
         sys.exit("請給一到兩個漢字，例如：python3 tools/prepare.py 窩")
-    text = build_pack(char)
+    text = build_pack(char, args.all)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(text, encoding="utf-8")

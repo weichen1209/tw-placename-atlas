@@ -13,7 +13,7 @@ data/raw/            內政部原始資料，不修改
   │  tools/prepare.py <字>   產生資料包：數字標記、各縣市數量、候選代表地名與由來
   ▼
 content/<字>.md      依AGENTS.md撰寫；數量寫成{{總數}}這類標記，由來逐字引用
-  │  tools/check.py          逐條檢查規則R01–R20，錯誤附代碼和改法
+  │  tools/check.py          逐條檢查規則R01–R21，錯誤附代碼和改法
   │  tools/build.py          把標記換成數字，畫地圖和縣市表
   ▼
 docs/                GitHub Pages從這裡發佈

@@ -36,6 +36,8 @@ CATEGORIES = ["地形", "水利", "開墾", "居所", "軍事", "族群", "方�
 MIN_PLACES = 20          # 少於這個數量的字不做頁面
 TOP_N = 5                # 數量或比例前幾名的縣市可以直接寫
 RATIO_MIN_COUNT = 5      # 比例排名只算這個字至少出現5處的縣市
+MISSING_NOTE_MIN = 5     # 缺字至少5處、而且占總數至少3%時，資料包和檢查會提醒在分布段說明
+MISSING_NOTE_RATIO = 0.03
 
 HAN_RE = re.compile(r"[㐀-䶿一-鿿\U00020000-\U0003134f]")
 
@@ -83,6 +85,7 @@ class Place:
     lon: Optional[float]
     lat: Optional[float]
     meanings: List[Tuple[str, str]] = field(default_factory=list)  # (由來, 來源)
+    more_villages: List[str] = field(default_factory=list)          # 跨好幾個里的聚落，其他里的名稱
 
     @property
     def loc(self) -> str:
@@ -90,7 +93,8 @@ class Place:
 
     @property
     def full_loc(self) -> str:
-        return f"{self.county}{self.town}{self.village}"
+        more = f"等{len(self.more_villages) + 1}個里" if self.more_villages else ""
+        return f"{self.county}{self.town}{self.village}{more}"
 
     @property
     def real_meanings(self) -> List[Tuple[str, str]]:
@@ -122,7 +126,21 @@ def _float(s: str) -> Optional[float]:
 
 @lru_cache(maxsize=1)
 def load_places() -> Tuple[Place, ...]:
-    """讀原始CSV，把同一縣市、鄉鎮、村里裡同名的紀錄合併成一處。"""
+    """讀原始CSV，合併成一處一筆：
+    1. 同一縣市、鄉鎮、村里裡同名的紀錄（地名辭書和田野調查常各記一次）；
+    2. 同一鄉鎮裡同名、而且由來相同或都沒有由來的紀錄（一個聚落跨好幾個里時，資料每個里各記一筆）。
+    合併後用第一筆的編號；被併掉的編號記在 pid_alias()。"""
+    return _load()[0]
+
+
+@lru_cache(maxsize=1)
+def pid_alias() -> Dict[str, str]:
+    """被合併掉的編號 → 合併後的編號。"""
+    return _load()[1]
+
+
+@lru_cache(maxsize=1)
+def _load() -> Tuple[Tuple[Place, ...], Dict[str, str]]:
     groups: Dict[tuple, Place] = {}
     with open(RAW_CSV, encoding="utf-8-sig", newline="") as f:
         for i, row in enumerate(csv.DictReader(f), start=1):
@@ -138,7 +156,23 @@ def load_places() -> Tuple[Place, ...]:
             text = clean_text(row["PlaceMean"])
             if text and all(norm_match(text) != norm_match(m) for m, _ in p.meanings):
                 p.meanings.append((text, row["DataSource"].strip()))
-    return tuple(sorted(groups.values(), key=lambda p: p.pid))
+    merged: Dict[tuple, Place] = {}
+    alias: Dict[str, str] = {}
+    for p in sorted(groups.values(), key=lambda p: p.pid):
+        sig = frozenset(norm_match(m) for m, _ in p.real_meanings)
+        key = (p.name, p.county, p.town, sig)
+        q = merged.get(key)
+        if q is None:
+            merged[key] = p
+            continue
+        q.more_villages.append(p.village)
+        if not q.has_xy and p.has_xy:
+            q.lon, q.lat = p.lon, p.lat
+        for m, src in p.meanings:
+            if all(norm_match(m) != norm_match(x) for x, _ in q.meanings):
+                q.meanings.append((m, src))
+        alias[p.pid] = q.pid
+    return tuple(sorted(merged.values(), key=lambda p: p.pid)), alias
 
 
 @lru_cache(maxsize=1)
@@ -220,9 +254,24 @@ class CharStats:
                 out.append(c)
         return out
 
+    @property
+    def missing(self) -> int:
+        """地名有缺字（?）、由來提到這個字的聚落數；它們可能也含這個字，但沒有算進總數。"""
+        return sum(any(self.char in m for m, _ in p.real_meanings) for p in garbled_places())
+
     def meaning_contains(self, word: str) -> int:
         w = norm_match(word)
         return sum(any(w in norm_match(m) for m, _ in p.real_meanings) for p in self.hits)
+
+
+def is_garbled(text: str) -> bool:
+    return "?" in text or "？" in text
+
+
+@lru_cache(maxsize=1)
+def garbled_places() -> Tuple[Place, ...]:
+    """地名裡有字在原始資料變成「?」的聚落。"""
+    return tuple(p for p in load_places() if is_garbled(p.name))
 
 
 @lru_cache(maxsize=256)
@@ -248,6 +297,7 @@ PH_HELP = {
     "占總數:X": "X縣市占這個字總數的百分比",
     "鄉鎮:X": "X鄉鎮（寫成縣市＋鄉鎮，例如新竹縣關西鎮）裡含這個字的聚落數",
     "由來含:X": "官方由來裡出現X這個詞的聚落數",
+    "缺字": "地名有缺字（?）、由來提到這個字的聚落數（可能也含這個字，沒有算進總數）",
 }
 
 
@@ -265,6 +315,8 @@ def eval_placeholder(key: str, st: CharStats) -> Tuple[Optional[str], Optional[s
         return fmt_int(st.with_meaning), None
     if key == "有座標":
         return fmt_int(st.with_xy), None
+    if key == "缺字":
+        return fmt_int(st.missing), None
     if ":" in key or "：" in key:
         kind, _, arg = key.replace("：", ":").partition(":")
         kind, arg = kind.strip(), arg.strip()

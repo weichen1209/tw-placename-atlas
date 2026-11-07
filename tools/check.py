@@ -1,4 +1,4 @@
-"""檢查內容檔與網站是否符合 AGENTS.md 的規則。規則代碼 R01–R20 對應 AGENTS.md 第11節。
+"""檢查內容檔與網站是否符合 AGENTS.md 的規則。規則代碼 R01–R21 對應 AGENTS.md 第11節。
 
 用法：
   python3 tools/check.py                    # 全部檢查（內容檔、log.md、原始資料、docs/ 是否最新）
@@ -14,6 +14,7 @@ import re
 import sys
 import tempfile
 from dataclasses import dataclass
+from functools import lru_cache
 from datetime import date
 from pathlib import Path
 from typing import List, Optional
@@ -24,7 +25,11 @@ import atlas  # noqa: E402
 PROPORTION_WORDS = ["絕大多數", "大多數", "大部分", "大多", "多數", "多半", "集中", "幾乎", "普遍", "少數", "居多",
                     "很多", "許多", "不少"]
 QUOTE_RE = re.compile(r"「([^「」]*)」")
+OLD_TERMS = ("番", "山胞", "土著")      # 原住民族的舊稱
 CN_QTY_RE = re.compile(r"[一二三四五六七八九十百千萬兩幾]+[多餘]?(?:處|個|筆|座|成|倍)")
+LONE_ONE_RE = re.compile(r"一[處個筆座]")       # 「每一處」「同一個」不是在講數量
+SHARED_PH_RE = re.compile(r"(?:皆|都|均|各|同樣|一樣)(?:有|為|是|占|約)?\{\{\s*(?:縣市|比例|占總數)\s*[:：]")
+SENT_RE = re.compile(r"[^。！？；]*[。！？；]?")
 CJK = r"㐀-鿿"
 SHORT_COUNTY_RE = re.compile(
     r"(基隆|臺北|台北|新北|桃園|新竹|苗栗|臺中|台中|彰化|南投|雲林|嘉義|臺南|台南|高雄|屏東|宜蘭|花蓮|臺東|台東|澎湖|金門|連江)(?![縣市])")
@@ -36,18 +41,19 @@ HINTS = {
     "R03": "換一個資料裡至少有20處的字（用 tools/prepare.py 看數量）。",
     "R04": "分類只能用：" + "、".join(atlas.CATEGORIES) + "。",
     "R05": "標題最多12字、不加標點；摘要只寫一句、以「。」結尾、最多60字。",
-    "R06": "相關字用「、」分隔，每個是單一漢字，不能和本字相同。",
+    "R06": "相關字用「、」分隔，每個是單一漢字，不能和本字相同，而且資料裡至少20處（以後才能做成頁面）。",
     "R07": "日期寫成YYYY-MM-DD，更新日期不能早於建立日期。",
     "R08": "段落只能是「## 字義」「## 分布」「## 代表地名」「## 延伸觀察」，照這個順序，前三個必填。",
     "R09": "字義80–300字、分布60–300字、延伸觀察最多300字（數字標記算2字）。",
-    "R10": "代表地名3–6個，每行「- P編號 地名（縣市鄉鎮）」，從資料包第5節抄；要含本字、有由來、至少兩個縣市。",
-    "R11": "只能用AGENTS.md第5.3節的數字標記，縣市寫全名、鄉鎮寫成縣市＋鄉鎮。",
-    "R12": "數量一律用數字標記；年代等數字只能出現在「」逐字引用裡；不要寫「三百多處」這類國字數量。",
-    "R13": "「」裡只能放：本字、相關字、資料裡的地名，或本頁代表地名由來的逐字片段（原文的「」改成『』）。",
-    "R14": "縣市寫全名；摘要、分布、延伸觀察提到資料包標「可直接提」以外的縣市，同一段要附上它的{{縣市:X}}或{{比例:X}}。",
-    "R15": "用到多數、大多、集中、幾乎、普遍、少數、很多、許多、不少這類詞的句子，要有數字標記支撐。",
-    "R16": "用「臺」不用「台」；中文和英數字、數字標記之間不空格；用全形標點；不要HTML、Markdown粗體、連結、emoji；「番」只出現在引號裡。",
-    "R20": "AGENTS.md第5.5節的範例要和content/窩.md完全相同；改了其中一個就同步另一個。",
+    "R10": "代表地名3–6個，每行「- P編號 地名（縣市鄉鎮）」，從資料包第5節抄；要含本字、有由來、至少兩個縣市，地名和村里沒有缺字（?）。",
+    "R11": "只能用AGENTS.md第5.3節的數字標記，縣市寫全名、鄉鎮寫成縣市＋鄉鎮；一個標記只代表它寫的縣市，兩個縣市要各寫一個；資料包提醒缺字偏多時，分布段要用{{缺字}}說明。",
+    "R12": "數量一律用數字標記；年代等數字只能出現在「」逐字引用裡；不要寫「三百多處」「九成」這類國字數量。地名和引文裡的國字照寫，「每一處」「同一個」可以寫；要說幾個縣市，就直接列出縣市名。",
+    "R13": "「」裡只能放：本字、單一漢字、相關字、資料裡的地名、同一段{{由來含:詞}}的詞，或本頁代表地名由來的逐字片段（原文的「」改成『』）；引文要接在它出自的那一處後面，不要引用有缺字（?）的片段。",
+    "R14": "縣市寫全名；摘要、分布、延伸觀察提到資料包標「可直接提」以外的縣市，同一段要附上它的{{縣市:X}}或{{比例:X}}（同一段有{{鄉鎮:X}}標記的鄉鎮名稱不算）。",
+    "R15": "用到" + "、".join(PROPORTION_WORDS) + "的句子，要有數字標記支撐。",
+    "R16": "用「臺」不用「台」；中文和英數字、數字標記之間不空格；用全形標點；不要HTML、Markdown粗體、連結、emoji；「番」「山胞」「土著」只出現在引號裡。",
+    "R20": "AGENTS.md第5.5節的範例要和content/窩.md完全相同；第2節的筆數和第5.3節例子的值要和資料一致；第6節R15的詞要和check.py一致。改了其中一邊就同步另一邊。",
+    "R21": "「最多」「最高」「最少」「最低」說的縣市或鄉鎮，要和資料包第2、3節的表一致（比例只算至少5處的縣市）；並列的都要寫出來。",
     "R17": "在 log.md 最後加一筆「## [YYYY-MM-DD] 新增｜<字>」，日期依序往下。",
     "R18": "不要修改 data/raw/ 的檔案；若是換新版資料，照AGENTS.md第9節更新 data/SOURCE.md。",
     "R19": "執行 python3 tools/build.py 重新產生 docs/，不要手改 docs/。",
@@ -148,6 +154,8 @@ def check_doc(path: Path) -> List[Problem]:
                 add(ln, "R06", f"相關字要是單一漢字：{r}")
             elif r == char:
                 add(ln, "R06", "相關字不能是本字")
+            elif atlas.char_counts().get(r, 0) < atlas.MIN_PLACES:
+                add(ln, "R06", f"相關字「{r}」在資料裡只有{atlas.char_counts().get(r, 0)}處，少於{atlas.MIN_PLACES}處，以後不能做成頁面")
             elif r in seen:
                 add(ln, "R06", f"相關字重複：{r}")
             seen.add(r)
@@ -203,7 +211,11 @@ def check_doc(path: Path) -> List[Problem]:
                 continue
             pid, name, loc = m.groups()
             if place is None:
-                add(ln, "R10", f"資料裡沒有編號{pid}")
+                new = atlas.pid_alias().get(pid)
+                if new:
+                    add(ln, "R10", f"{pid}已和{new}合併成一處（同一鄉鎮同名、由來相同的紀錄算一處），請改用{new}")
+                else:
+                    add(ln, "R10", f"資料裡沒有編號{pid}")
                 continue
             if pid in seen:
                 add(ln, "R10", f"{pid}重複")
@@ -214,12 +226,17 @@ def check_doc(path: Path) -> List[Problem]:
                 add(ln, "R10", f"{place.name}不含「{char}」")
             if not place.has_meaning:
                 add(ln, "R10", f"{place.name}沒有官方由來，不能當代表地名")
-            if "?" in place.name:
-                add(ln, "R10", f"{place.name}的字在原始資料裡有缺字（?），不要當代表地名")
+            if atlas.is_garbled(place.name) or atlas.is_garbled(place.village):
+                add(ln, "R10", f"{place.name}（{place.full_loc}）的地名或村里在原始資料裡有缺字（?），不要當代表地名")
             rep_places.append(place)
         if len({p.county for p in rep_places}) < 2 and len(reps) >= 3:
             add(doc.section("代表地名").line, "R10", "代表地名至少要來自兩個縣市")
     sources = [atlas.norm_match(m) for p in rep_places for m, _ in p.real_meanings]
+    rep_by_name = {}
+    for p in rep_places:
+        rep_by_name.setdefault(p.name, []).append(p)
+    rep_name_re = (re.compile("|".join(map(re.escape, sorted(rep_by_name, key=len, reverse=True))))
+                   if rep_by_name else None)
     names_ok = {char, *doc.related} | set(atlas.all_place_names())
     allowed_counties = set(st.allowed_counties()) if st else set(atlas.COUNTIES)
     # R11–R16 文字規則
@@ -231,35 +248,140 @@ def check_doc(path: Path) -> List[Problem]:
                 _, err = atlas.eval_placeholder(key, st)
                 if err:
                     add(ln, "R11", err)
-        for q in QUOTE_RE.findall(text):                               # R13
-            if not q.strip():
-                add(ln, "R13", "空的引號")
-            elif q in names_ok or (len(q) == 1 and atlas.HAN_RE.fullmatch(q)):
-                continue
-            elif not any(atlas.norm_match(q) in s for s in sources):
-                add(ln, "R13", f"引號內的文字在代表地名的由來裡找不到：「{q}」")
+        terms = set()
+        for k in atlas.PH_RE.findall(text):
+            kind, sep, arg = k.replace("：", ":").partition(":")
+            if sep and kind.strip() == "由來含":
+                terms.add(arg.strip())
+        for sent in SENT_RE.findall(text):                             # R13
+            for qm in QUOTE_RE.finditer(sent):
+                q = qm.group(1)
+                if not q.strip():
+                    add(ln, "R13", "空的引號")
+                    continue
+                if q in names_ok or q in terms or (len(q) == 1 and atlas.HAN_RE.fullmatch(q)):
+                    continue
+                if atlas.is_garbled(q):
+                    add(ln, "R13", f"引文有缺字（?），換一段沒有缺字的：「{q}」")
+                    continue
+                nq = atlas.norm_match(q)
+                if not any(nq in s for s in sources):
+                    add(ln, "R13", f"引號內的文字在代表地名的由來裡找不到：「{q}」")
+                    continue
+                if rep_name_re:
+                    before = QUOTE_RE.sub(lambda x: "「" + "〇" * len(x.group(1)) + "」", sent[:qm.start()])
+                    hits = list(rep_name_re.finditer(before))
+                    if hits:
+                        name = hits[-1].group(0)
+                        if not any(nq in atlas.norm_match(m) for p in rep_by_name[name] for m, _ in p.real_meanings):
+                            add(ln, "R13", f"「{q}」不在前面提到的{name}的由來裡；引文要接在它出自的那一處後面")
         bare = strip_ph(strip_quotes(text))
         for m in re.finditer(r"[0-9０-９]+", bare):                     # R12
             add(ln, "R12", f"{where}裡有直接寫出的數字「{m.group(0)}」")
-        for m in CN_QTY_RE.finditer(bare):
+        cn = bare
+        for n in numeral_place_names():
+            if n in cn:
+                cn = cn.replace(n, "〇" * len(n))
+        for m in CN_QTY_RE.finditer(cn):
+            if LONE_ONE_RE.fullmatch(m.group(0)):
+                continue
             add(ln, "R12", f"{where}裡用國字寫數量「{m.group(0)}」")
+        for m in SHARED_PH_RE.finditer(text):                          # R11
+            add(ln, "R11", f"「{m.group(0)}…」：一個數字標記只代表它寫的縣市，兩個縣市要各寫一個標記")
         ph_counties = set()
+        no_towns = bare                     # 同一段有{{鄉鎮:X}}標記的鄉鎮名稱，裡面的縣市不算另外提到
         for k in atlas.PH_RE.findall(text):
             kind, sep, arg = k.replace("：", ":").partition(":")
             if sep and kind.strip() in ("縣市", "比例", "占總數"):
                 ph_counties.update(x.strip() for x in arg.split("+"))
+            elif sep and kind.strip() == "鄉鎮":
+                no_towns = no_towns.replace(arg.strip(), "〇" * len(arg.strip()))
         if where in ("摘要", "分布", "延伸觀察"):                         # R14
             for c in atlas.COUNTIES:
-                if c in bare and c not in allowed_counties and c not in ph_counties:
+                if c in no_towns and c not in allowed_counties and c not in ph_counties:
                     add(ln, "R14", f"提到「{c}」，但它不是數量或比例前五名，同一段要附上{{{{縣市:{c}}}}}或{{{{比例:{c}}}}}")
-        for m in SHORT_COUNTY_RE.finditer(bare):
+        for m in SHORT_COUNTY_RE.finditer(no_towns):
             add(ln, "R14", f"「{m.group(1)}」如果指的是縣市，請寫全名（例如{m.group(1).replace('台', '臺')}縣或{m.group(1).replace('台', '臺')}市）", "警告")
         for sent in re.split(r"[。！？；]", text):                       # R15
             words = [w for w in PROPORTION_WORDS if w in strip_quotes(sent)]
             if words and not atlas.PH_RE.search(sent):
                 add(ln, "R15", f"「{words[0]}」這句沒有數字標記：{sent.strip()[:30]}")
         check_style(ln, text, add)
+    check_ranks(doc, st, add)
+    if st is not None and st.missing >= atlas.MISSING_NOTE_MIN and st.missing / st.total >= atlas.MISSING_NOTE_RATIO:
+        dist = doc.section("分布")
+        if dist and not any("缺字" in k for _, t in dist.paragraphs for k in atlas.PH_RE.findall(t)):
+            add(dist.line, "R11", f"有{st.missing}處地名有缺字（?）而由來提到「{char}」，占總數的{atlas.fmt_pct(st.missing / st.total)}；"
+                "分布段要用{{缺字}}說明數量可能偏少")
     return P
+
+
+RANK_WORDS = {"最多": ("count", "top"), "最少": ("count", "bottom"), "最高": ("ratio", "top"), "最低": ("ratio", "bottom")}
+
+
+def rank_set_ok(claimed: List[str], values: dict, end: str):
+    """claimed 是不是數值前（或後）len(claimed) 名，並列的都算。回傳（是否成立, 正確的名單）。"""
+    k = len(claimed)
+    ordered = sorted(values, key=lambda x: -values[x] if end == "top" else values[x])
+    if not ordered:
+        return True, []
+    thr = values[ordered[min(k, len(ordered)) - 1]]
+    right = [x for x in ordered if (values[x] >= thr if end == "top" else values[x] <= thr)]
+    return all(c in values and c in right for c in claimed), right
+
+
+def check_ranks(doc: atlas.Doc, st: Optional[atlas.CharStats], add) -> None:
+    """R21：「最多」「最高」說的縣市、鄉鎮要和資料一致。"""
+    if st is None:
+        return
+    counts = {c: n for c, n in st.by_county.items() if n > 0}
+    ratios = {c: st.ratio(c) for c, n in st.by_county.items() if n >= atlas.RATIO_MIN_COUNT}
+    towns = dict(st.by_town)
+    for ln, where, text in prose_blocks(doc):
+        if where not in ("摘要", "分布", "延伸觀察"):
+            continue
+        for sent in SENT_RE.findall(text):
+            prev: List[str] = []
+            for clause in re.split(r"[，：]", sent):
+                plain = strip_quotes(clause)
+                tw = []
+                for k in atlas.PH_RE.findall(plain):
+                    kind, sep, arg = k.replace("：", ":").partition(":")
+                    if sep and kind.strip() == "鄉鎮":
+                        tw.append(arg.strip())
+                words = atlas.PH_RE.sub("", plain)
+                for t in tw:
+                    words = words.replace(t, "")
+                cs = sorted({c for c in atlas.COUNTIES if c in words}, key=words.index)
+                for word, (metric, end) in RANK_WORDS.items():
+                    if word not in words:
+                        continue
+                    if metric == "count" and "比例" in words:
+                        metric = "ratio"
+                    if tw and ("鄉鎮" in words or not cs):
+                        ok, right = rank_set_ok(tw, towns, end)
+                        if not ok:
+                            add(ln, "R21", f"「{word}」的鄉鎮寫的是{'、'.join(tw)}，資料裡是{'、'.join(right[:4])}")
+                        continue
+                    claimed = cs or prev
+                    if not claimed:
+                        continue
+                    values = ratios if metric == "ratio" else counts
+                    few = [c for c in claimed if metric == "ratio" and c not in ratios]
+                    if few:
+                        add(ln, "R21", f"「{word}」提到的{'、'.join(few)}不到{atlas.RATIO_MIN_COUNT}處，不列入比例排名")
+                        continue
+                    ok, right = rank_set_ok(claimed, values, end)
+                    if not ok:
+                        name = "比例" if metric == "ratio" else "數量"
+                        add(ln, "R21", f"「{word}」寫的是{'、'.join(claimed)}，但{name}{word}的是{'、'.join(right[:4])}")
+                prev = cs or prev
+
+
+@lru_cache(maxsize=1)
+def numeral_place_names() -> List[str]:
+    """地名本身就有國字數量的（例如三座厝），寫地名時不算國字數量。"""
+    return sorted((n for n in atlas.all_place_names() if CN_QTY_RE.search(n)), key=len, reverse=True)
 
 
 def check_style(ln: int, text: str, add) -> None:
@@ -267,8 +389,9 @@ def check_style(ln: int, text: str, add) -> None:
     for m in re.finditer(r"台(?=[灣北中南東])", body):
         add(ln, "R16", "用「臺」不用「台」")
         break
-    if "番" in body:
-        add(ln, "R16", "「番」這類舊稱只能出現在「」逐字引用或地名引號裡，說明文字用「原住民族」或由來裡的族名")
+    for w in OLD_TERMS:
+        if w in body:
+            add(ln, "R16", f"「{w}」這類舊稱只能出現在「」逐字引用或地名引號裡，說明文字用「原住民族」或由來裡的族名")
     t = atlas.PH_RE.sub("〇", body)
     if re.search(rf"[{CJK}〇）」』，。、：；][ \t　]+[A-Za-z0-9]|[A-Za-z0-9][ \t　]+[{CJK}〇（「『]", t) \
             or re.search(rf"[{CJK}][ \t　]+〇|〇[ \t　]+[{CJK}]", t) \
@@ -325,9 +448,25 @@ def check_agents_example() -> List[Problem]:
     target = atlas.CONTENT_DIR / f"{m.group(1)}.md"
     if not target.exists():
         return [Problem("AGENTS.md", line, "R20", f"範例指向的 content/{m.group(1)}.md 不存在")]
+    P = []
     if m.group(2).strip() != target.read_text(encoding="utf-8").strip():
-        return [Problem("AGENTS.md", line, "R20", f"第5.5節的範例和 content/{m.group(1)}.md 不一致")]
-    return []
+        P.append(Problem("AGENTS.md", line, "R20", f"第5.5節的範例和 content/{m.group(1)}.md 不一致"))
+    lines = text.split("\n")
+    for i, ln_text in enumerate(lines, start=1):
+        mm = re.search(r"([\d,]+)筆合併成([\d,]+)處", ln_text)
+        if mm:
+            want = (atlas.fmt_int(atlas.raw_record_count()), atlas.fmt_int(len(atlas.load_places())))
+            if (mm.group(1), mm.group(2)) != want:
+                P.append(Problem("AGENTS.md", i, "R20", f"寫的是{mm.group(1)}筆合併成{mm.group(2)}處，資料算出來是{want[0]}筆合併成{want[1]}處"))
+        mm = re.search(r"「([^「」]+)」這些詞，同一句要有數字標記", ln_text)
+        if mm and mm.group(1).split("、") != PROPORTION_WORDS:
+            P.append(Problem("AGENTS.md", i, "R20", "第6節R15列的詞和check.py的PROPORTION_WORDS不一致"))
+        mm = re.match(r"^\| `\{\{(.+?)\}\}` \| .*? \| ([^|]+?) \|$", ln_text)
+        if mm:
+            val, err = atlas.eval_placeholder(mm.group(1), atlas.char_stats(m.group(1)))
+            if err is None and val != mm.group(2).strip():
+                P.append(Problem("AGENTS.md", i, "R20", f"第5.3節例子{{{{{mm.group(1)}}}}}寫的是{mm.group(2).strip()}，「{m.group(1)}」現在算出來是{val}"))
+    return P
 
 
 def check_docs() -> List[Problem]:
