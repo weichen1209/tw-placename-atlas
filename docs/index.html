@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>臺灣地名用字地圖</title>
+<meta name="description" content="一個字一頁，看一個字在臺灣聚落地名裡的分布與官方由來。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' fill='%23fbfcfa' stroke='%236f9c7d' stroke-width='3'/%3E%3Cpath d='M16 4v24M4 16h24' stroke='%236f9c7d' stroke-width='1.5' stroke-dasharray='3 2.5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23c4372c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="page-index">
+<a class="skip" href="#main">跳到主要內容</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">地</span>臺灣地名用字地圖</a>
+    <nav class="site-nav" aria-label="主要頁面">
+      <a href="index.html" aria-current="page">所有的字</a>
+      <a href="rank.html" >用字排行</a>
+      <a href="about.html" >關於與規則</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<div class="wrap">
+  <section class="intro">
+    <h1>臺灣地名用字地圖</h1>
+    <p>內政部記錄了33,923處聚落的地名，其中21,096處附有官方說明的由來。這個網站一個字做一頁：畫出地名含這個字的聚落在哪裡，再引用官方由來說明這個字在地名裡的意思。目前收錄1個字。</p>
+  </section>
+
+  <section class="atlas" aria-labelledby="h-atlas">
+    <h2 id="h-atlas" class="sr-only">已收錄的字</h2>
+    <div class="chips" role="group" aria-label="依分類篩選"><button type="button" class="chip" aria-pressed="true" data-cat="">全部</button><button type="button" class="chip" aria-pressed="false" data-cat="地形">地形</button></div>
+    <ul class="tiles"><li class="tile" data-cat="地形"><a href="zi/窩.html"><span class="tile-top"><span class="tzg" aria-hidden="true">窩</span><span class="tile-text"><span class="sr-only">窩：</span><span class="tile-title">三面環山的凹地</span><span class="tile-count">441處</span></span></span><span class="tile-map"><img src="assets/basemap.svg" alt="" loading="lazy"><img src="assets/mini/窩.png" alt="" loading="lazy"></span></a></li></ul>
+    <p class="atlas-note">每張小地圖的紅點是地名含這個字的聚落。點進一個字，可以看各縣市的數量、比例和代表地名。</p>
+  </section>
+
+  <section class="lookup" aria-labelledby="h-lookup">
+    <h2 id="h-lookup">查一個字</h2>
+    <form id="lookup-form" data-min="20">
+      <label for="lookup">輸入一個漢字，看它出現在幾處聚落的地名裡</label>
+      <div class="lookup-row">
+        <input id="lookup" name="q" maxlength="2" autocomplete="off" inputmode="text">
+        <button type="submit">查詢</button>
+      </div>
+    </form>
+    <p id="lookup-result" class="lookup-result" aria-live="polite"></p>
+    <p>出現20處以上的字共549個，還沒收錄的字列在<a href="rank.html">用字排行</a>。</p>
+  </section>
+</div>
+<script type="application/json" id="pages-data">{"窩": "三面環山的凹地"}</script>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <p>資料來源：內政部「臺灣地區地名資料_聚落類」與「直轄市、縣市界線」，依政府資料開放授權條款第1版使用。</p>
+    <p>每一頁都依<a href="https://github.com/weichen1209/tw-placename-atlas/blob/main/AGENTS.md">AGENTS.md</a>的規則產生並經程式檢查。原始碼在<a href="https://github.com/weichen1209/tw-placename-atlas">GitHub</a>。</p>
+  </div>
+</footer>
+<script src="assets/index.js" defer></script>
+</body>
+</html>

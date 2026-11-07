@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="zh-Hant-TW">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>關於與規則｜臺灣地名用字地圖</title>
+<meta name="description" content="資料來源、計算方式、頁面怎麼產生，以及給AI的規則。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='2' y='2' width='28' height='28' fill='%23fbfcfa' stroke='%236f9c7d' stroke-width='3'/%3E%3Cpath d='M16 4v24M4 16h24' stroke='%236f9c7d' stroke-width='1.5' stroke-dasharray='3 2.5'/%3E%3Ccircle cx='16' cy='16' r='6' fill='%23c4372c'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=LXGW+WenKai+TC:wght@400;700&display=swap">
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body class="page-about">
+<a class="skip" href="#main">跳到主要內容</a>
+<header class="site-header">
+  <div class="wrap header-row">
+    <a class="brand" href="index.html"><span class="brand-mark" aria-hidden="true">地</span>臺灣地名用字地圖</a>
+    <nav class="site-nav" aria-label="主要頁面">
+      <a href="index.html" >所有的字</a>
+      <a href="rank.html" >用字排行</a>
+      <a href="about.html" aria-current="page">關於與規則</a>
+    </nav>
+  </div>
+</header>
+<main id="main">
+<article class="wrap about">
+  <div class="prose">
+    <h1>關於與規則</h1>
+
+    <h2>這個網站做什麼</h2>
+    <p>臺灣的聚落地名常用同一批字，例如厝、寮、坑、埔。同一個字在不同地區出現的多寡不一樣，背後是地形、開墾方式和族群的差異。這個網站一個字一頁，用官方資料畫出分布，並引用官方記載的由來說明字義。</p>
+
+    <h2>資料</h2>
+    <ul>
+      <li>聚落地名：內政部「臺灣地區地名資料_聚落類」（政府資料開放平臺資料集53677，2026-09-24版），原始資料37,720筆，SHA-256前12碼5f69906f594a。</li>
+      <li>縣市界線：內政部「直轄市、縣市界線(TWD97經緯度)」1140318版。</li>
+      <li>兩份資料都依政府資料開放授權條款第1版使用。原始檔案放在GitHub的<a href="https://github.com/weichen1209/tw-placename-atlas/tree/main/data/raw"><code>data/raw/</code></a>，網站不修改它們。</li>
+    </ul>
+
+    <h2>計算方式</h2>
+    <ul>
+      <li>同一縣市、鄉鎮、村里裡同名的紀錄算同一處：37,720筆合併成33,923處。重複的紀錄大多是「地名辭書」和「田野調查」各記一次。</li>
+      <li>「地名含某字」指地名裡有這個字，不論在第幾個字。</li>
+      <li>「有官方由來」指至少有一筆由來，而且不是只寫「詳見某里」，共21,096處。</li>
+      <li>地圖只畫有經緯度的29,078處。縣市的「比例」是該縣市的聚落中，地名含這個字的比例。</li>
+      <li>連江縣、金門縣和烏坵畫在地圖左上角的小框裡，金門縣和烏坵放大兩倍。</li>
+    </ul>
+
+    <h2>頁面怎麼產生</h2>
+    <ol class="flow">
+      <li><b>資料包</b><span><code>tools/prepare.py</code>算出這個字的數量、各縣市比例和候選代表地名。</span></li>
+      <li><b>內容檔</b><span>AI依AGENTS.md寫<code>content/字.md</code>。數量只能寫成<code>{{總數}}</code>這類標記，由來只能逐字引用。</span></li>
+      <li><b>檢查</b><span><code>tools/check.py</code>把AGENTS.md的規則逐條檢查，例如數字、引號、縣市名稱、段落格式，錯誤會附規則代碼和改法。</span></li>
+      <li><b>網頁</b><span><code>tools/build.py</code>把標記換成數字，畫地圖和表格，輸出到<code>docs/</code>，GitHub Pages從這裡發佈。</span></li>
+    </ol>
+    <p>完整規則見<a href="https://github.com/weichen1209/tw-placename-atlas/blob/main/AGENTS.md">AGENTS.md</a>。一個字至少要出現在20處聚落的地名裡才做頁面。</p>
+
+    <h2>已知限制</h2>
+    <ul>
+      <li>部分罕用字在原始資料裡變成「?」，例如糖廍的「廍」，這些字的數量會偏少。</li>
+      <li>同一個字在地名裡可能有好幾種意思。字義只根據有官方由來的聚落，沒有由來的聚落不知道是哪一種。</li>
+      <li>官方由來有些是傳說或推測，頁面照原文引用，不另外判斷真假。</li>
+    </ul>
+
+    <h2>變更紀錄</h2>
+    <p>最新的在最上面，完整紀錄見GitHub上的<a href="https://github.com/weichen1209/tw-placename-atlas/blob/main/log.md">log.md</a>。</p>
+  </div>
+  <ol class="log"><li><time>2026-11-07</time><span class="act">新增</span><a href="zi/窩.html">窩</a><ul><li>第一個字，當作AGENTS.md第5.5節的範例。</li></ul></li><li><time>2026-11-07</time><span class="act">規則</span>AGENTS.md第一版<ul><li>寫下專案目的、資料計算方式、新增流程、內容檔格式、寫作與版面規則、檢查代碼R01–R20。</li></ul></li><li><time>2026-11-07</time><span class="act">程式</span>prepare.py、check.py、build.py<ul><li>建立資料包、規則檢查與網站建置程式，只用Python標準函式庫。</li></ul></li><li><time>2026-11-07</time><span class="act">資料</span>聚落地名與縣市界線<ul><li>放入內政部「臺灣地區地名資料_聚落類」2026-09-24版與「直轄市、縣市界線」1140318版，來源與SHA-256記在data/SOURCE.md。</li></ul></li></ol>
+</article>
+
+</main>
+<footer class="site-footer">
+  <div class="wrap">
+    <p>資料來源：內政部「臺灣地區地名資料_聚落類」與「直轄市、縣市界線」，依政府資料開放授權條款第1版使用。</p>
+    <p>每一頁都依<a href="https://github.com/weichen1209/tw-placename-atlas/blob/main/AGENTS.md">AGENTS.md</a>的規則產生並經程式檢查。原始碼在<a href="https://github.com/weichen1209/tw-placename-atlas">GitHub</a>。</p>
+  </div>
+</footer>
+
+</body>
+</html>

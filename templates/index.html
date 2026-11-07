@@ -1,0 +1,27 @@
+<div class="wrap">
+  <section class="intro">
+    <h1>臺灣地名用字地圖</h1>
+    <p>內政部記錄了$n_places處聚落的地名，其中$n_meaning處附有官方說明的由來。這個網站一個字做一頁：畫出地名含這個字的聚落在哪裡，再引用官方由來說明這個字在地名裡的意思。目前收錄$n_pages個字。</p>
+  </section>
+
+  <section class="atlas" aria-labelledby="h-atlas">
+    <h2 id="h-atlas" class="sr-only">已收錄的字</h2>
+    <div class="chips" role="group" aria-label="依分類篩選">$chips</div>
+    <ul class="tiles">$cards</ul>
+    <p class="atlas-note">每張小地圖的紅點是地名含這個字的聚落。點進一個字，可以看各縣市的數量、比例和代表地名。</p>
+  </section>
+
+  <section class="lookup" aria-labelledby="h-lookup">
+    <h2 id="h-lookup">查一個字</h2>
+    <form id="lookup-form" data-min="20">
+      <label for="lookup">輸入一個漢字，看它出現在幾處聚落的地名裡</label>
+      <div class="lookup-row">
+        <input id="lookup" name="q" maxlength="2" autocomplete="off" inputmode="text">
+        <button type="submit">查詢</button>
+      </div>
+    </form>
+    <p id="lookup-result" class="lookup-result" aria-live="polite"></p>
+    <p>出現20處以上的字共$n_candidates個，還沒收錄的字列在<a href="rank.html">用字排行</a>。</p>
+  </section>
+</div>
+<script type="application/json" id="pages-data">$pages_json</script>

@@ -1,0 +1,240 @@
+/* 臺灣地名用字地圖：版面樣式
+   母題是生字簿：大字放在田字格裡、用楷書；結構線用田字格的綠，資料點與選取用紅筆的紅。
+   改顏色或字型只改 :root 的變數，不要在個別頁面寫死。 */
+
+:root {
+  --paper: #fbfcfa;
+  --surface: #eff3ee;
+  --ink: #222724;
+  --ink-2: #4a524d;
+  --pencil: #69716b;
+  --trace: #a7afa9;
+  --grid: #6f9c7d;
+  --grid-faint: #cddfd2;
+  --red: #c4372c;
+  --red-soft: #f7dfdb;
+  --kai: "LXGW WenKai TC", "BiauKai", "DFKai-SB", "Kaiti TC", "STKaiti", serif;
+  --sans: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", system-ui, sans-serif;
+  --step--1: 0.875rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.3rem;
+  --step-2: 1.6rem;
+  --step-3: 2.1rem;
+  --step-4: 2.8rem;
+  --measure: 38em;
+  --gap: clamp(1rem, 3vw, 2rem);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: var(--step-0);
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}
+
+a { color: inherit; text-decoration-color: var(--grid); text-decoration-thickness: 1.5px; text-underline-offset: 0.2em; }
+a:hover { color: var(--red); text-decoration-color: var(--red); }
+:focus-visible { outline: 3px solid var(--red); outline-offset: 2px; }
+
+h1, h2, h3 { font-family: var(--kai); font-weight: 700; line-height: 1.3; margin: 0; }
+h1 { font-size: var(--step-4); }
+h2 { font-size: var(--step-3); }
+h3 { font-size: var(--step-1); }
+p { margin: 0 0 1em; }
+
+.wrap { width: min(1120px, 100% - 2rem); margin-inline: auto; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: -999px; top: 0; background: var(--ink); color: var(--paper); padding: 0.5rem 1rem; z-index: 10; }
+.skip:focus { left: 1rem; }
+
+/* ---------- 頁首、頁尾 */
+.site-header { border-bottom: 2px solid var(--grid); background: var(--paper); }
+.header-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1.5rem; padding-block: 0.75rem; }
+.brand { display: inline-flex; align-items: center; gap: 0.6rem; font-family: var(--kai); font-size: var(--step-1); font-weight: 700; text-decoration: none; }
+.brand-mark {
+  display: inline-grid; place-items: center; width: 2.2rem; height: 2.2rem;
+  border: 1.5px solid var(--grid); font-size: 1.45rem; line-height: 1;
+  background:
+    repeating-linear-gradient(90deg, var(--grid-faint) 0 3px, transparent 3px 6px) center / 100% 1px no-repeat,
+    repeating-linear-gradient(0deg, var(--grid-faint) 0 3px, transparent 3px 6px) center / 1px 100% no-repeat;
+}
+.site-nav { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; }
+.site-nav a { text-decoration: none; padding-block: 0.25rem; border-bottom: 2px solid transparent; }
+.site-nav a[aria-current="page"] { border-bottom-color: var(--red); }
+.site-footer { margin-top: 4rem; border-top: 2px solid var(--grid); padding-block: 1.5rem 2.5rem; color: var(--pencil); font-size: var(--step--1); }
+.site-footer p { margin: 0 0 0.4em; }
+
+/* ---------- 田字格 */
+.tzg {
+  position: relative; display: grid; place-items: center; aspect-ratio: 1;
+  border: 2px solid var(--grid); background-color: #fff;
+  background-image:
+    repeating-linear-gradient(90deg, var(--grid-faint) 0 6px, transparent 6px 12px),
+    repeating-linear-gradient(0deg, var(--grid-faint) 0 6px, transparent 6px 12px);
+  background-size: 100% 1.5px, 1.5px 100%;
+  background-position: center, center;
+  background-repeat: no-repeat;
+  font-family: var(--kai); line-height: 1;
+}
+.tzg-xl { width: clamp(7.5rem, 22vw, 12rem); font-size: clamp(5.5rem, 16vw, 9rem); }
+.tzg-xl span { transform: translateY(-0.04em); }
+
+/* ---------- 首頁 */
+.intro { padding-block: clamp(2rem, 6vw, 3.5rem) 1.5rem; max-width: var(--measure); }
+.intro h1 { margin-bottom: 0.75rem; }
+.intro p { color: var(--ink-2); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
+.chip {
+  font: inherit; font-size: var(--step--1); cursor: pointer;
+  border: 1.5px solid var(--grid); background: var(--paper); color: var(--ink);
+  padding: 0.15rem 0.9rem; border-radius: 999px;
+}
+.chip[aria-pressed="true"] { background: var(--grid); color: #fff; }
+.chip:hover { border-color: var(--red); }
+
+.tiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.tile a { display: grid; grid-template-rows: auto auto; text-decoration: none; }
+.tile-top { display: flex; align-items: flex-end; gap: 0.6rem; margin-bottom: 0.35rem; }
+.tile .tzg { width: 3.4rem; font-size: 2.5rem; border-width: 1.5px; }
+.tile-text { display: grid; line-height: 1.35; }
+.tile-title { font-size: var(--step--1); color: var(--ink-2); }
+.tile-count { font-size: var(--step--1); color: var(--pencil); }
+.tile-map { position: relative; display: block; aspect-ratio: 764 / 1044; border-top: 1.5px solid var(--grid-faint); }
+.tile-map img { position: absolute; inset: 0; width: 100%; height: 100%; }
+.tile a:hover .tzg, .tile a:focus-visible .tzg { border-color: var(--red); color: var(--red); }
+.tile[hidden] { display: none; }
+.atlas-note { margin-top: 1.25rem; color: var(--pencil); font-size: var(--step--1); }
+
+.lookup { margin-top: 3rem; padding-top: 1.5rem; border-top: 2px solid var(--grid-faint); max-width: var(--measure); }
+.lookup h2 { font-size: var(--step-2); margin-bottom: 0.5rem; }
+.lookup label { display: block; color: var(--ink-2); margin-bottom: 0.4rem; }
+.lookup-row { display: flex; gap: 0.5rem; }
+.lookup input {
+  width: 4.5rem; font-family: var(--kai); font-size: 2rem; text-align: center; line-height: 1.2;
+  border: 2px solid var(--grid); background: #fff; color: var(--ink); padding: 0.2rem;
+}
+.lookup button { font: inherit; border: 2px solid var(--ink); background: var(--ink); color: #fff; padding: 0 1.2rem; cursor: pointer; }
+.lookup button:hover { background: var(--red); border-color: var(--red); }
+.lookup-result { min-height: 1.8em; margin-top: 0.75rem; font-weight: 600; }
+
+/* ---------- 單字頁 */
+.zi-hero { display: grid; grid-template-columns: auto 1fr; gap: var(--gap); align-items: center; padding-block: clamp(1.5rem, 5vw, 3rem); border-bottom: 2px solid var(--grid-faint); }
+.zi-head h1 { margin-bottom: 0.6rem; }
+.zi-summary { font-size: var(--step-1); color: var(--ink-2); max-width: var(--measure); }
+.zi-facts { display: flex; flex-wrap: wrap; gap: 0.75rem 2rem; margin: 1rem 0 0; }
+.zi-facts div { display: grid; }
+.zi-facts dt { font-size: var(--step--1); color: var(--pencil); }
+.zi-facts dd { margin: 0; font-size: var(--step-2); font-weight: 600; line-height: 1.3; }
+.zi-facts dd small { font-size: var(--step--1); font-weight: 400; margin-left: 0.15em; }
+.zi-facts dd a { font-family: var(--kai); }
+
+.zi-section { padding-block: 2.25rem 0.5rem; }
+.zi-section > h2 { margin-bottom: 1rem; display: flex; align-items: center; gap: 0.6rem; }
+.zi-section > h2::before { content: ""; width: 0.55em; height: 0.55em; border: 2px solid var(--grid); flex: none; }
+.section-note { color: var(--pencil); font-size: var(--step--1); }
+.prose { max-width: var(--measure); }
+.num { font-weight: 700; color: var(--ink); }
+.cite { text-decoration: underline; text-decoration-color: var(--red); text-decoration-style: dotted; text-decoration-thickness: 2px; text-underline-offset: 0.25em; }
+
+.dist { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
+.map-figure { margin: 0; position: relative; }
+.map { display: block; width: 100%; height: auto; max-height: 82vh; background: #f4f8fb; border: 1.5px solid var(--grid-faint); }
+.map circle { fill: var(--red); fill-opacity: 0.78; stroke: #fff; stroke-width: 0.6; cursor: pointer; transition: fill-opacity 0.15s; }
+.map circle:hover, .map circle:focus-visible { fill-opacity: 1; stroke: var(--ink); stroke-width: 1.2; outline: none; }
+.map circle.on { fill: var(--ink); fill-opacity: 1; stroke: #fff; stroke-width: 1.5; }
+.map.filtering circle.dim { fill-opacity: 0.12; }
+.map-figure figcaption { font-size: var(--step--1); color: var(--pencil); margin-top: 0.5rem; }
+
+.place-panel { margin-top: 0.75rem; border: 2px solid var(--ink); background: #fff; padding: 0.9rem 1rem; }
+.place-panel[hidden] { display: none; }
+.pp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
+.pp-name { font-family: var(--kai); font-size: var(--step-2); font-weight: 700; margin: 0; }
+.pp-close { font: inherit; font-size: var(--step--1); border: 1.5px solid var(--ink-2); background: none; padding: 0 0.7rem; cursor: pointer; }
+.pp-loc { color: var(--pencil); font-size: var(--step--1); margin: 0 0 0.5rem; }
+.pp-body blockquote, .place-card blockquote { margin: 0.5rem 0 0; padding: 0.1rem 0 0.1rem 0.9rem; border-left: 3px solid var(--grid); }
+.pp-body blockquote p, .place-card blockquote p { margin: 0; }
+.pp-body footer, .place-card footer { font-size: var(--step--1); color: var(--pencil); }
+.pp-none { color: var(--pencil); }
+
+.county-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; font-size: var(--step--1); }
+.county-table caption { text-align: left; color: var(--pencil); padding-bottom: 0.4rem; }
+.county-table th, .county-table td { padding: 0.18rem 0.4rem; text-align: left; border-bottom: 1px solid var(--grid-faint); white-space: nowrap; }
+.county-table thead th { color: var(--pencil); font-weight: 400; border-bottom: 1.5px solid var(--grid); }
+.county-table tbody th { font-weight: 400; width: 5em; }
+.county-table td { position: relative; width: 45%; }
+.county-table .bar { display: inline-block; vertical-align: middle; height: 0.7em; width: calc(var(--w) * 0.62); min-width: 2px; margin-right: 0.4rem; }
+.county-table .bar.n { background: var(--red); }
+.county-table .bar.r { background: var(--grid); }
+.county-table tbody tr { cursor: default; }
+.county-table tbody tr:hover, .county-table tbody tr.hl { background: var(--red-soft); }
+.table-note { color: var(--pencil); font-size: var(--step--1); margin-top: 0.5rem; }
+
+.place-cards { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.25rem 2rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 22rem), 1fr)); }
+.place-card { border-top: 2px solid var(--grid); padding-top: 0.6rem; }
+.place-card h3 { font-size: var(--step-2); }
+.place-card .loc { color: var(--pencil); font-size: var(--step--1); margin: 0; }
+
+.rel-list { display: flex; flex-wrap: wrap; gap: 1rem; }
+.rel { display: inline-flex; align-items: center; gap: 0.6rem; text-decoration: none; }
+.rel b { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; font-family: var(--kai); font-size: 1.9rem; border: 1.5px solid var(--grid); background: #fff; font-weight: 400; }
+.rel span { font-size: var(--step--1); color: var(--ink-2); }
+.rel.none b { color: var(--trace); border-style: dashed; }
+a.rel:hover b { border-color: var(--red); color: var(--red); }
+.zi-check p { color: var(--ink-2); font-size: var(--step--1); max-width: var(--measure); }
+
+/* ---------- 用字排行：生字簿 */
+.rack { list-style: none; margin: 1rem 0 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(4.6rem, 1fr)); gap: 0; border-left: 1.5px solid var(--grid); border-top: 1.5px solid var(--grid); }
+.rack li { border-right: 1.5px solid var(--grid); border-bottom: 1.5px solid var(--grid); }
+.rack li > a, .rack li > div { display: grid; justify-items: center; padding: 0.35rem 0.2rem 0.4rem; text-decoration: none; position: relative; height: 100%; }
+.rack b { font-family: var(--kai); font-weight: 400; font-size: 2.3rem; line-height: 1.15; color: var(--trace); }
+.rack .done b { color: var(--ink); }
+.rack .done a::after { content: ""; position: absolute; top: 0.1rem; left: calc(50% - 1.6rem); width: 3.2rem; height: 3.2rem; border: solid var(--red); border-width: 2px 2.5px 2px 1.5px; border-radius: 50%; transform: rotate(-8deg); opacity: 0.6; pointer-events: none; }
+.rack .rk { position: absolute; top: 0.1rem; left: 0.3rem; font-size: 0.7rem; color: var(--pencil); }
+.rack .n { font-size: 0.75rem; color: var(--pencil); }
+.rack .t { font-size: 0.7rem; color: var(--pencil); text-align: center; line-height: 1.3; }
+.rack .done .t { color: var(--ink-2); }
+.rack .done a:hover b { color: var(--red); }
+
+/* ---------- 程式碼與檔名 */
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.86em; background: var(--surface); border: 1px solid var(--grid-faint); border-radius: 3px; padding: 0.05em 0.3em; margin: 0 0.15em; white-space: nowrap; }
+a code { background: transparent; }
+
+/* ---------- 關於 */
+.about .prose { padding-top: clamp(2rem, 6vw, 3.5rem); }
+.about h1 { margin-bottom: 1rem; }
+.about h2 { font-size: var(--step-2); margin: 2rem 0 0.6rem; }
+.about ul { padding-left: 1.2em; }
+.about li { margin-bottom: 0.4em; }
+.flow { list-style: none; padding: 0; counter-reset: step; display: grid; gap: 0.75rem; }
+.flow li { counter-increment: step; display: grid; grid-template-columns: 2.4rem 1fr; column-gap: 0.75rem; align-items: start; }
+.flow li::before { content: counter(step); grid-row: span 2; display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border: 2px solid var(--grid); font-family: var(--kai); font-size: 1.4rem; background: #fff; }
+.flow b { font-family: var(--kai); font-size: var(--step-1); }
+.flow span { color: var(--ink-2); }
+.log { list-style: none; padding: 0; max-width: var(--measure); }
+.log > li { padding: 0.5rem 0; border-bottom: 1px solid var(--grid-faint); }
+.log time { color: var(--pencil); margin-right: 0.75rem; font-size: var(--step--1); }
+.log .act { display: inline-block; font-size: var(--step--1); border: 1.5px solid var(--grid); padding: 0 0.45rem; margin-right: 0.5rem; }
+.log ul { margin: 0.25rem 0 0; padding-left: 1.2em; color: var(--ink-2); font-size: var(--step--1); }
+
+/* ---------- 窄螢幕 */
+@media (max-width: 760px) {
+  h1 { font-size: var(--step-3); }
+  h2 { font-size: var(--step-2); }
+  .zi-hero { grid-template-columns: 1fr; justify-items: start; }
+  .dist { grid-template-columns: 1fr; }
+  .map { max-height: none; }
+  .tiles { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 1rem; }
+  .county-table td { width: auto; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}

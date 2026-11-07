@@ -1,0 +1,44 @@
+<article class="wrap about">
+  <div class="prose">
+    <h1>關於與規則</h1>
+
+    <h2>這個網站做什麼</h2>
+    <p>臺灣的聚落地名常用同一批字，例如厝、寮、坑、埔。同一個字在不同地區出現的多寡不一樣，背後是地形、開墾方式和族群的差異。這個網站一個字一頁，用官方資料畫出分布，並引用官方記載的由來說明字義。</p>
+
+    <h2>資料</h2>
+    <ul>
+      <li>聚落地名：內政部「臺灣地區地名資料_聚落類」（政府資料開放平臺資料集53677，2026-09-24版），原始資料$n_raw筆，SHA-256前12碼$sha。</li>
+      <li>縣市界線：內政部「直轄市、縣市界線(TWD97經緯度)」1140318版。</li>
+      <li>兩份資料都依政府資料開放授權條款第1版使用。原始檔案放在GitHub的<a href="$repo/tree/main/data/raw"><code>data/raw/</code></a>，網站不修改它們。</li>
+    </ul>
+
+    <h2>計算方式</h2>
+    <ul>
+      <li>同一縣市、鄉鎮、村里裡同名的紀錄算同一處：$n_raw筆合併成$n_places處。重複的紀錄大多是「地名辭書」和「田野調查」各記一次。</li>
+      <li>「地名含某字」指地名裡有這個字，不論在第幾個字。</li>
+      <li>「有官方由來」指至少有一筆由來，而且不是只寫「詳見某里」，共$n_meaning處。</li>
+      <li>地圖只畫有經緯度的$n_xy處。縣市的「比例」是該縣市的聚落中，地名含這個字的比例。</li>
+      <li>連江縣、金門縣和烏坵畫在地圖左上角的小框裡，金門縣和烏坵放大兩倍。</li>
+    </ul>
+
+    <h2>頁面怎麼產生</h2>
+    <ol class="flow">
+      <li><b>資料包</b><span><code>tools/prepare.py</code>算出這個字的數量、各縣市比例和候選代表地名。</span></li>
+      <li><b>內容檔</b><span>AI依AGENTS.md寫<code>content/字.md</code>。數量只能寫成<code>{{總數}}</code>這類標記，由來只能逐字引用。</span></li>
+      <li><b>檢查</b><span><code>tools/check.py</code>把AGENTS.md的規則逐條檢查，例如數字、引號、縣市名稱、段落格式，錯誤會附規則代碼和改法。</span></li>
+      <li><b>網頁</b><span><code>tools/build.py</code>把標記換成數字，畫地圖和表格，輸出到<code>docs/</code>，GitHub Pages從這裡發佈。</span></li>
+    </ol>
+    <p>完整規則見<a href="$repo/blob/main/AGENTS.md">AGENTS.md</a>。一個字至少要出現在$min_places處聚落的地名裡才做頁面。</p>
+
+    <h2>已知限制</h2>
+    <ul>
+      <li>部分罕用字在原始資料裡變成「?」，例如糖廍的「廍」，這些字的數量會偏少。</li>
+      <li>同一個字在地名裡可能有好幾種意思。字義只根據有官方由來的聚落，沒有由來的聚落不知道是哪一種。</li>
+      <li>官方由來有些是傳說或推測，頁面照原文引用，不另外判斷真假。</li>
+    </ul>
+
+    <h2>變更紀錄</h2>
+    <p>最新的在最上面，完整紀錄見GitHub上的<a href="$repo/blob/main/log.md">log.md</a>。</p>
+  </div>
+  <ol class="log">$log</ol>
+</article>

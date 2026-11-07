@@ -1,0 +1,56 @@
+<article class="zi wrap" data-char="$char">
+  <header class="zi-hero">
+    <div class="tzg tzg-xl" aria-hidden="true"><span>$char</span></div>
+    <div class="zi-head">
+      <h1><span class="sr-only">$char：</span>$title</h1>
+      <p class="zi-summary">$summary</p>
+      <dl class="zi-facts">
+        <div><dt>地名含「$char」的聚落</dt><dd>$total<small>處</small></dd></div>
+        <div><dt>占全臺聚落</dt><dd>$share</dd></div>
+        <div><dt>有官方由來</dt><dd>$with_meaning<small>處</small></dd></div>
+        <div><dt>分類</dt><dd><a href="../index.html#cat=$cat">$cat</a></dd></div>
+      </dl>
+    </div>
+  </header>
+
+  <section class="zi-section" aria-labelledby="h-dist">
+    <h2 id="h-dist">分布</h2>
+    <div class="dist">
+      <figure class="map-figure">
+        $map_svg
+        <figcaption>紅點是地名含「$char」的聚落（有座標的$with_xy處），淡色點是全臺所有聚落。點一個紅點可以看它的官方由來。</figcaption>
+        <div class="place-panel" id="place-panel" hidden>
+          <div class="pp-head">
+            <p class="pp-name"></p>
+            <button type="button" class="pp-close">關閉</button>
+          </div>
+          <p class="pp-loc"></p>
+          <div class="pp-body" aria-live="polite"></div>
+        </div>
+      </figure>
+      <div class="dist-side">
+        <div class="prose">$dist_prose</div>
+        $county_table
+      </div>
+    </div>
+  </section>
+
+  <section class="zi-section" aria-labelledby="h-mean">
+    <h2 id="h-mean">字義</h2>
+    <div class="prose">$meaning_prose</div>
+  </section>
+
+  <section class="zi-section" aria-labelledby="h-ex">
+    <h2 id="h-ex">代表地名</h2>
+    <p class="section-note">下面的由來是官方資料的原文，引號裡畫底線的字句就出自這裡。</p>
+    <ul class="place-cards">$cards</ul>
+  </section>
+
+  $extra_section
+  $related_section
+
+  <section class="zi-section zi-check" aria-labelledby="h-check">
+    <h2 id="h-check">資料與檢查</h2>
+    <p>本頁的數字由程式從原始資料計算；畫底線的引文都經程式逐字比對過官方由來。內容檔：<a href="$src_url">content/$char.md</a>，建立於$created，最後更新$updated。</p>
+  </section>
+</article>
