@@ -4,6 +4,7 @@
   python3 tools/prepare.py 窩              # 印在畫面上
   python3 tools/prepare.py 窩 --out packs/窩.md
   python3 tools/prepare.py 窩 --all --out packs/窩.md   # 第5節列出全部候選，不限每縣市6處、總共60處
+  python3 tools/prepare.py 坪 --words 臺地,盆地        # 第4節多列由來含這些詞的處數，「台」「臺」兩種寫法都列
 """
 from __future__ import annotations
 
@@ -22,6 +23,7 @@ STOP = set("""故名 得名 地名 聚落 位於 此地 因此 所以 稱為 名
 之地 的地 地的 的意 意思 為主 主要 已經 另有 有人 之一 其中 民國 日治 時期 清代 年間""".split())
 PER_COUNTY = 6
 MAX_CANDIDATES = 60
+SWAP_TAI = str.maketrans("台臺", "臺台")
 
 
 def theme_words(st: atlas.CharStats, n: int, top: int):
@@ -78,7 +80,17 @@ def pick_candidates(st: atlas.CharStats, show_all: bool = False):
     return pool, chosen
 
 
-def build_pack(char: str, show_all: bool = False) -> str:
+def with_variants(words):
+    """每個詞再加上「台」「臺」互換的寫法；{{由來含:詞}}逐字比對，兩種寫法分開算。"""
+    out = []
+    for x in words:
+        for v in (x, x.translate(SWAP_TAI)):
+            if v not in out:
+                out.append(v)
+    return out
+
+
+def build_pack(char: str, show_all: bool = False, words=()) -> str:
     st = atlas.char_stats(char)
     total_all = len(atlas.load_places())
     sha = atlas.file_sha256(atlas.RAW_CSV)[:12]
@@ -87,7 +99,8 @@ def build_pack(char: str, show_all: bool = False) -> str:
     w(f"# 資料包：{char}")
     w("")
     w(f"- 資料：內政部「臺灣地區地名資料_聚落類」2026-09-24版（SHA-256前12碼{sha}）；同名紀錄照AGENTS.md第2節合併，共{atlas.fmt_int(total_all)}處。")
-    w(f"- 產生方式：python3 tools/prepare.py {char}{' --all' if show_all else ''}")
+    w(f"- 產生方式：python3 tools/prepare.py {char}{' --all' if show_all else ''}"
+      + (f" --words {','.join(words)}" if words else ""))
     w("- 數字只能用數字標記寫進內容檔（建置時才換成數字），不要把表格裡的數字直接抄進去。")
     w("- 引號「」裡的由來要從第5節逐字複製；原文的「」改成『』。")
     w("")
@@ -134,8 +147,10 @@ def build_pack(char: str, show_all: bool = False) -> str:
     w("要寫「由來提到某個詞的有幾處」，用{{由來含:詞}}，任何詞都可以算，不限下面這些。")
     w("")
     for n in (2, 3):
-        words = theme_words(st, n, 15)
-        w(f"- {n}個字：" + ("、".join(f"{g}（{k}）" for g, k in words) if words else "無"))
+        grams = theme_words(st, n, 15)
+        w(f"- {n}個字：" + ("、".join(f"{g}（{k}）" for g, k in grams) if grams else "無"))
+    if words:
+        w("- 指定的詞（--words）：" + "、".join(f"{x}（{st.meaning_contains(x)}）" for x in with_variants(words)))
     w("")
     pool, chosen = pick_candidates(st, show_all)
     skipped = st.with_meaning - len(pool)
@@ -172,11 +187,17 @@ def main():
     ap.add_argument("--out", help="寫到檔案，不指定就印在畫面上")
     ap.add_argument("--all", action="store_true",
                     help=f"第5節列出全部候選代表地名，不限每縣市{PER_COUNTY}處、總共{MAX_CANDIDATES}處")
+    ap.add_argument("--words", default="",
+                    help="用「,」或「、」分隔的詞，第4節多列由來含這些詞的處數（「台」「臺」兩種寫法都列），例如--words 臺地,盆地")
     args = ap.parse_args()
     char = args.char.strip()
     if not char or not all(atlas.HAN_RE.fullmatch(c) for c in char) or len(char) > 2:
         sys.exit("請給一到兩個漢字，例如：python3 tools/prepare.py 窩")
-    text = build_pack(char, args.all)
+    words = []
+    for x in re.split(r"[,，、\s]+", args.words):
+        if x and x not in words:
+            words.append(x)
+    text = build_pack(char, args.all, words)
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(text, encoding="utf-8")
