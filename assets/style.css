@@ -1,10 +1,11 @@
 /* 臺灣地名用字地圖：版面樣式
-   母題是生字簿：大字放在田字格裡、用楷書；結構線用田字格的綠，資料點與選取用紅筆的紅。
-   改顏色或字型只改 :root 的變數，不要在個別頁面寫死。 */
+   母題是生字簿：大字放在田字格裡、用楷書；結構線用田字格的綠，資料點用紅筆的紅；選到的地圖點用墨色。
+   改顏色或字型只改:root的變數，不要在個別頁面寫死；地圖底圖和點圖（SVG、PNG）的顏色寫在tools/build.py開頭。 */
 
 :root {
   --paper: #fbfcfa;
   --surface: #eff3ee;
+  --white: #fff;          /* 田字格、方框、輸入框、面板的白底；地圖點的白邊；深色按鈕上的字 */
   --ink: #222724;
   --ink-2: #4a524d;
   --pencil: #69716b;
@@ -13,6 +14,7 @@
   --grid-faint: #cddfd2;
   --red: #c4372c;
   --red-soft: #f7dfdb;
+  --sea: #f4f8fb;         /* 單字頁地圖的底色（海） */
   --kai: "LXGW WenKai TC", "BiauKai", "DFKai-SB", "Kaiti TC", "STKaiti", serif;
   --sans: "PingFang TC", "Noto Sans TC", "Microsoft JhengHei", "Heiti TC", system-ui, sans-serif;
   --step--1: 0.875rem;
@@ -74,7 +76,7 @@ p { margin: 0 0 1em; }
 /* ---------- 田字格 */
 .tzg {
   position: relative; display: grid; place-items: center; aspect-ratio: 1;
-  border: 2px solid var(--grid); background-color: #fff;
+  border: 2px solid var(--grid); background-color: var(--white);
   background-image:
     repeating-linear-gradient(90deg, var(--grid-faint) 0 6px, transparent 6px 12px),
     repeating-linear-gradient(0deg, var(--grid-faint) 0 6px, transparent 6px 12px);
@@ -97,7 +99,7 @@ p { margin: 0 0 1em; }
   border: 1.5px solid var(--grid); background: var(--paper); color: var(--ink);
   padding: 0.15rem 0.9rem; border-radius: 999px;
 }
-.chip[aria-pressed="true"] { background: var(--grid); color: #fff; }
+.chip[aria-pressed="true"] { background: var(--grid); color: var(--white); }
 .chip:hover { border-color: var(--red); }
 
 .tiles { list-style: none; margin: 0; padding: 0; display: grid; gap: 1.25rem; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
@@ -119,9 +121,9 @@ p { margin: 0 0 1em; }
 .lookup-row { display: flex; gap: 0.5rem; }
 .lookup input {
   width: 4.5rem; font-family: var(--kai); font-size: 2rem; text-align: center; line-height: 1.2;
-  border: 2px solid var(--grid); background: #fff; color: var(--ink); padding: 0.2rem;
+  border: 2px solid var(--grid); background: var(--white); color: var(--ink); padding: 0.2rem;
 }
-.lookup button { font: inherit; border: 2px solid var(--ink); background: var(--ink); color: #fff; padding: 0 1.2rem; cursor: pointer; }
+.lookup button { font: inherit; border: 2px solid var(--ink); background: var(--ink); color: var(--white); padding: 0 1.2rem; cursor: pointer; }
 .lookup button:hover { background: var(--red); border-color: var(--red); }
 .lookup-result { min-height: 1.8em; margin-top: 0.75rem; font-weight: 600; }
 
@@ -146,14 +148,14 @@ p { margin: 0 0 1em; }
 
 .dist { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr); gap: var(--gap); align-items: start; }
 .map-figure { margin: 0; position: relative; }
-.map { display: block; width: 100%; height: auto; max-height: 82vh; background: #f4f8fb; border: 1.5px solid var(--grid-faint); }
-.map circle { fill: var(--red); fill-opacity: 0.78; stroke: #fff; stroke-width: 0.6; cursor: pointer; transition: fill-opacity 0.15s; }
+.map { display: block; width: 100%; height: auto; max-height: 82vh; background: var(--sea); border: 1.5px solid var(--grid-faint); }
+.map circle { fill: var(--red); fill-opacity: 0.78; stroke: var(--white); stroke-width: 0.6; cursor: pointer; transition: fill-opacity 0.15s; }
 .map circle:hover, .map circle:focus-visible { fill-opacity: 1; stroke: var(--ink); stroke-width: 1.2; outline: none; }
-.map circle.on { fill: var(--ink); fill-opacity: 1; stroke: #fff; stroke-width: 1.5; }
+.map circle.on { fill: var(--ink); fill-opacity: 1; stroke: var(--white); stroke-width: 1.5; }
 .map.filtering circle.dim { fill-opacity: 0.12; }
 .map-figure figcaption { font-size: var(--step--1); color: var(--pencil); margin-top: 0.5rem; }
 
-.place-panel { margin-top: 0.75rem; border: 2px solid var(--ink); background: #fff; padding: 0.9rem 1rem; }
+.place-panel { margin-top: 0.75rem; border: 2px solid var(--ink); background: var(--white); padding: 0.9rem 1rem; }
 .place-panel[hidden] { display: none; }
 .pp-head { display: flex; justify-content: space-between; align-items: baseline; gap: 1rem; }
 .pp-name { font-family: var(--kai); font-size: var(--step-2); font-weight: 700; margin: 0; }
@@ -184,7 +186,7 @@ p { margin: 0 0 1em; }
 
 .rel-list { display: flex; flex-wrap: wrap; gap: 1rem; }
 .rel { display: inline-flex; align-items: center; gap: 0.6rem; text-decoration: none; }
-.rel b { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; font-family: var(--kai); font-size: 1.9rem; border: 1.5px solid var(--grid); background: #fff; font-weight: 400; }
+.rel b { display: grid; place-items: center; width: 2.6rem; height: 2.6rem; font-family: var(--kai); font-size: 1.9rem; line-height: 1; border: 1.5px solid var(--grid); background: var(--white); font-weight: 400; }
 .rel span { font-size: var(--step--1); color: var(--ink-2); }
 .rel.none b { color: var(--trace); border-style: dashed; }
 a.rel:hover b { border-color: var(--red); color: var(--red); }
@@ -215,7 +217,7 @@ a code { background: transparent; }
 .about li { margin-bottom: 0.4em; }
 .flow { list-style: none; padding: 0; counter-reset: step; display: grid; gap: 0.75rem; }
 .flow li { counter-increment: step; display: grid; grid-template-columns: 2.4rem 1fr; column-gap: 0.75rem; align-items: start; }
-.flow li::before { content: counter(step); grid-row: span 2; display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border: 2px solid var(--grid); font-family: var(--kai); font-size: 1.4rem; background: #fff; }
+.flow li::before { content: counter(step); grid-row: span 2; display: grid; place-items: center; width: 2.4rem; height: 2.4rem; border: 2px solid var(--grid); font-family: var(--kai); font-size: 1.4rem; background: var(--white); }
 .flow b { font-family: var(--kai); font-size: var(--step-1); }
 .flow span { color: var(--ink-2); }
 .log { list-style: none; padding: 0; max-width: var(--measure); }

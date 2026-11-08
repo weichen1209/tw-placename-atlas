@@ -1,6 +1,6 @@
 """臺灣地名用字地圖的共用函式：讀原始資料、去重、統計、解析內容檔、地圖投影。
 
-只用 Python 標準函式庫（3.9 以上）。build.py、check.py、prepare.py 都從這裡取資料，
+只用Python標準函式庫（3.9以上）。build.py、check.py、prepare.py都從這裡取資料，
 同一個數字只在這裡算一次。
 """
 from __future__ import annotations
@@ -44,9 +44,10 @@ HAN_RE = re.compile(r"[㐀-䶿一-鿿\U00020000-\U0003134f]")
 
 # ---------------------------------------------------------------- 文字處理
 def clean_text(s: str) -> str:
-    """官方由來的顯示用文字：解碼 &#24269; 這類編碼、<br> 換成換行、去掉其他標籤。"""
+    """官方由來的顯示用文字：解碼&#24269;這類編碼、<br>換成換行、<img>（缺字的圖片）換成「?」、去掉其他標籤。"""
     s = html.unescape(s or "")
     s = re.sub(r"<\s*br\s*/?\s*>", "\n", s, flags=re.I)
+    s = re.sub(r"<\s*img\b[^>]*>", "?", s, flags=re.I)
     s = re.sub(r"<[^>]+>", "", s)
     lines = [ln.strip() for ln in s.replace("\r", "").split("\n")]
     return "\n".join(ln for ln in lines if ln)
@@ -78,7 +79,7 @@ def fmt_pct(r: float) -> str:
 @dataclass
 class Place:
     pid: str                      # P＋第一筆紀錄在CSV的資料列號（5位數）
-    name: str                     # NFKC 正規化後的地名
+    name: str                     # NFC正規化後的地名（相容漢字換成標準字，全形標點不變）
     county: str
     town: str
     village: str
@@ -129,35 +130,37 @@ def load_places() -> Tuple[Place, ...]:
     """讀原始CSV，合併成一處一筆：
     1. 同一縣市、鄉鎮、村里裡同名的紀錄（地名辭書和田野調查常各記一次）；
     2. 同一鄉鎮裡同名、而且由來相同或都沒有由來的紀錄（一個聚落跨好幾個里時，資料每個里各記一筆）。
-    合併後用第一筆的編號；被併掉的編號記在 pid_alias()。"""
+    合併後用第一筆的編號；兩層合併被併掉的編號都記在pid_alias()。"""
     return _load()[0]
 
 
 @lru_cache(maxsize=1)
 def pid_alias() -> Dict[str, str]:
-    """被合併掉的編號 → 合併後的編號。"""
+    """被合併掉的編號→最後留下的編號（兩層合併都算）。"""
     return _load()[1]
 
 
 @lru_cache(maxsize=1)
 def _load() -> Tuple[Tuple[Place, ...], Dict[str, str]]:
     groups: Dict[tuple, Place] = {}
+    alias: Dict[str, str] = {}
     with open(RAW_CSV, encoding="utf-8-sig", newline="") as f:
         for i, row in enumerate(csv.DictReader(f), start=1):
-            name = unicodedata.normalize("NFKC", row["PlaceName"].strip())
+            name = unicodedata.normalize("NFC", row["PlaceName"].strip())
             key = (name, row["County"], row["Town"], row["Village"])
             p = groups.get(key)
             if p is None:
                 p = Place(f"P{i:05d}", name, row["County"], row["Town"], row["Village"],
                           _float(row["Longitude"]), _float(row["Latitude"]))
                 groups[key] = p
-            elif not p.has_xy and _float(row["Longitude"]) is not None:
-                p.lon, p.lat = _float(row["Longitude"]), _float(row["Latitude"])
+            else:
+                alias[f"P{i:05d}"] = p.pid       # 第一層：同一村里同名的紀錄
+                if not p.has_xy and _float(row["Longitude"]) is not None:
+                    p.lon, p.lat = _float(row["Longitude"]), _float(row["Latitude"])
             text = clean_text(row["PlaceMean"])
             if text and all(norm_match(text) != norm_match(m) for m, _ in p.meanings):
                 p.meanings.append((text, row["DataSource"].strip()))
     merged: Dict[tuple, Place] = {}
-    alias: Dict[str, str] = {}
     for p in sorted(groups.values(), key=lambda p: p.pid):
         sig = frozenset(norm_match(m) for m, _ in p.real_meanings)
         key = (p.name, p.county, p.town, sig)
@@ -171,7 +174,14 @@ def _load() -> Tuple[Tuple[Place, ...], Dict[str, str]]:
         for m, src in p.meanings:
             if all(norm_match(m) != norm_match(x) for x, _ in q.meanings):
                 q.meanings.append((m, src))
-        alias[p.pid] = q.pid
+        alias[p.pid] = q.pid                 # 第二層：同一鄉鎮同名、由來相同的紀錄
+
+    def final(pid: str) -> str:              # 第一層併進的編號如果在第二層又被併掉，轉到最後留下的編號
+        while pid in alias:
+            pid = alias[pid]
+        return pid
+
+    alias = {k: final(v) for k, v in alias.items()}
     return tuple(sorted(merged.values(), key=lambda p: p.pid)), alias
 
 
@@ -258,6 +268,13 @@ class CharStats:
     def missing(self) -> int:
         """地名有缺字（?）、由來提到這個字的聚落數；它們可能也含這個字，但沒有算進總數。"""
         return sum(any(self.char in m for m, _ in p.real_meanings) for p in garbled_places())
+
+    @property
+    def missing_note(self) -> bool:
+        """缺字偏多、分布段要用{{缺字}}說明：至少MISSING_NOTE_MIN處，而且占總數至少MISSING_NOTE_RATIO。
+        總數是0時不算比例（這種字本來就少於MIN_PLACES處，不做頁面）。"""
+        return (self.total > 0 and self.missing >= MISSING_NOTE_MIN
+                and self.missing / self.total >= MISSING_NOTE_RATIO)
 
     def meaning_contains(self, word: str) -> int:
         w = norm_match(word)
@@ -445,7 +462,7 @@ def parse_doc(path: Path) -> Doc:
             flush()
         elif current is None:
             doc.problems.append((j + 1, "R08", "前置資料之後要先接「## 字義」，不能有其他文字"))
-        elif s.startswith("- ") or s.startswith("-P") or s == "-":
+        elif re.match(r"[-*+](?:\s|$)", s) or s.startswith("-P"):     # 「- 」「* 」「+ 」開頭的都算清單
             flush()
             current.items.append((j + 1, s))
         else:

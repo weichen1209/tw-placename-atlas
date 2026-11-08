@@ -17,7 +17,7 @@
       <li>同一縣市、鄉鎮、村里裡同名的紀錄算同一處，這類重複多半是「地名辭書」和「田野調查」各記一次。</li>
       <li>同一鄉鎮裡、不同村里的同名聚落，如果官方由來相同或都沒有由來，也算同一處，例如$merge_example。兩個步驟做完，$n_raw筆合併成$n_places處。</li>
       <li>「地名含某字」指地名裡有這個字，不論在第幾個字。</li>
-      <li>「有官方由來」指至少有一筆由來，而且不是只寫「詳見某里」，共$n_meaning處。</li>
+      <li>「有官方由來」指至少有一筆由來，而且不是「詳見」開頭的簡短參照（例如「詳見社內里」），共$n_meaning處；用「參見」寫的參照仍算有由來。</li>
       <li>地圖只畫有經緯度的$n_xy處。縣市的「比例」是該縣市的聚落中，地名含這個字的比例。</li>
       <li>連江縣、金門縣和烏坵畫在地圖左上角的小框裡，金門縣和烏坵放大兩倍。</li>
     </ul>
@@ -26,7 +26,7 @@
     <ol class="flow">
       <li><b>資料包</b><span><code>tools/prepare.py</code>算出這個字的數量、各縣市比例和候選代表地名。</span></li>
       <li><b>內容檔</b><span>AI依AGENTS.md寫<code>content/字.md</code>。數量只能寫成<code>{{總數}}</code>這類標記，由來只能逐字引用。</span></li>
-      <li><b>檢查</b><span><code>tools/check.py</code>把AGENTS.md的規則逐條檢查，例如數字、引號、縣市名稱、段落格式，錯誤會附規則代碼和改法。</span></li>
+      <li><b>檢查</b><span><code>tools/check.py</code>把AGENTS.md第11節的規則逐條檢查，例如數字、引號、縣市名稱、段落格式，錯誤會附規則代碼和改法。</span></li>
       <li><b>網頁</b><span><code>tools/build.py</code>把標記換成數字，畫地圖和表格，輸出到<code>docs/</code>，GitHub Pages從這裡發佈。</span></li>
     </ol>
     <p>完整規則見<a href="$repo/blob/main/AGENTS.md">AGENTS.md</a>。一個字至少要出現在$min_places處聚落的地名裡才做頁面。</p>

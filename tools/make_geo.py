@@ -89,7 +89,7 @@ def main():
     for row, rings in zip(rows, shapes):
         county = row.get("COUNTYNAME")
         if county not in atlas.COUNTIES:
-            print("略過", county, file=sys.stderr)
+            print(f"略過{county}", file=sys.stderr)
             continue
         path = []
         for ring in rings:
@@ -112,7 +112,7 @@ def main():
     }
     atlas.GEO_JSON.parent.mkdir(parents=True, exist_ok=True)
     atlas.GEO_JSON.write_text(json.dumps(geo, ensure_ascii=False, separators=(",", ":"), sort_keys=True), encoding="utf-8")
-    print("寫入", atlas.GEO_JSON.relative_to(atlas.ROOT), f"{atlas.GEO_JSON.stat().st_size:,} bytes")
+    print(f"寫入{atlas.GEO_JSON.relative_to(atlas.ROOT)}（{atlas.GEO_JSON.stat().st_size:,}位元組）")
     # 檢查聚落點是否都落在對應的框內
     groups = {}
     for p in atlas.load_places():
@@ -120,7 +120,7 @@ def main():
             groups.setdefault(atlas.view_for(p.county, p.lon), []).append(atlas.project_place(p))
     for v, pts in groups.items():
         bad = [q for q in pts if not (v.x0 - 1 <= q[0] <= v.x0 + v.w + 1 and v.y0 - 1 <= q[1] <= v.y0 + v.h + 1)]
-        print(v.label or "本島與澎湖", "點數", len(pts), "超出框", len(bad))
+        print(f"{v.label or '本島與澎湖'}：點數{len(pts)}，超出框{len(bad)}")
 
 
 if __name__ == "__main__":

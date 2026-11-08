@@ -5,7 +5,7 @@ data/raw/的檔案下載後沒有修改過；tools/check.py會比對下面記錄
 ## settlements-2026.csv
 
 - 名稱：臺灣地區地名資料_聚落類（檔名「臺灣地區地名資料_聚落類2026年」）
-- 提供機關：內政部
+- 提供機關：內政部地政司
 - 資料集頁面：https://data.gov.tw/dataset/53677
 - 下載網址：https://opdadm.moi.gov.tw/api/v1/no-auth/resource/api/dataset/4A5AB0C9-0395-4B04-AE50-02624075516F/resource/9E43B451-3177-4CEC-8765-C601660A88E4/download
 - 資料集更新日期：2026-09-24；下載日期：2026-11-07
@@ -16,7 +16,7 @@ data/raw/的檔案下載後沒有修改過；tools/check.py會比對下面記錄
 ## county-boundary-1140318.zip
 
 - 名稱：直轄市、縣市界線(TWD97經緯度)，1140318版SHP格式
-- 提供機關：內政部
+- 提供機關：內政部國土測繪中心
 - 資料集頁面：https://data.gov.tw/dataset/7442
 - 下載日期：2026-11-07
 - 授權：政府資料開放授權條款－第1版

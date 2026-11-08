@@ -2,7 +2,7 @@
 
 用法：python3 tools/build.py
 建置前會先跑check.py（R19除外），有錯誤就停止，不會產生網頁。
-docs/ 裡的檔案全部由這支程式產生，不要手改。
+docs/裡的檔案全部由這支程式產生，不要手改。
 """
 from __future__ import annotations
 
@@ -15,7 +15,7 @@ import sys
 import zlib
 from pathlib import Path
 from string import Template
-from typing import Dict, List
+from typing import Dict, List, Sequence
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import atlas  # noqa: E402
@@ -25,6 +25,15 @@ ASSETS = atlas.ROOT / "assets"
 SCALE = 2                 # 點圖用2倍解析度
 DOT_R = 3.0               # 本頁的字的點半徑（地圖座標）
 esc = html.escape
+
+# 地圖用色。底圖SVG和PNG點圖是用<img>、<image>載入的檔案，吃不到style.css的變數，
+# 所以顏色集中寫在這裡；頁面其他顏色都用style.css開頭的變數。
+MAP_LAND = "#ebe3d3"            # 底圖的陸地
+MAP_BORDER = "#c4b49b"          # 縣市界線
+MAP_INSET_BOX = "#b3a48b"       # 左上角離島小框的框線
+MAP_INSET_LABEL = "#7d7266"     # 離島小框的名稱
+BASE_DOT_RGB = (128, 108, 86)   # 單字頁地圖的淡色點：全臺有座標的聚落
+MINI_DOT_RGB = (181, 51, 46)    # 首頁小地圖的紅點：地名含這個字的聚落
 
 
 # ---------------------------------------------------------------- PNG（標準函式庫）
@@ -91,7 +100,20 @@ def find_source(q: str, reps: List[atlas.Place]):
     return None
 
 
-def render_text(text: str, st: atlas.CharStats, reps: List[atlas.Place]) -> str:
+def meaning_terms(text: str) -> set:
+    """同一段{{由來含:詞}}算的詞，取法和check.py的R13相同。"""
+    terms = set()
+    for k in atlas.PH_RE.findall(text):
+        kind, sep, arg = k.replace("：", ":").partition(":")
+        if sep and kind.strip() == "由來含":
+            terms.add(arg.strip())
+    return terms
+
+
+def render_text(text: str, st: atlas.CharStats, reps: List[atlas.Place], related: Sequence[str] = ()) -> str:
+    """數字標記換成數字；代表地名由來的逐字引文畫底線，並註明引自哪一處。
+    本字、相關字、單一漢字、資料裡的地名、同一段{{由來含:詞}}算的詞不是引文，不畫底線。"""
+    not_cite = {st.char, *related} | meaning_terms(text)
     out, pos = [], 0
     for m in re.finditer(r"\{\{([^{}]*)\}\}|「([^「」]*)」", text):
         out.append(esc(text[pos:m.start()]))
@@ -100,7 +122,8 @@ def render_text(text: str, st: atlas.CharStats, reps: List[atlas.Place]) -> str:
             out.append(f'<span class="num">{esc(val or "")}</span>')
         else:
             q = m.group(2)
-            src = find_source(q, reps) if len(q) > 1 and q not in atlas.all_place_names() else None
+            src = (find_source(q, reps)
+                   if len(q) > 1 and q not in not_cite and q not in atlas.all_place_names() else None)
             if src:
                 out.append(f'「<span class="cite" title="引自{esc(src.name)}（{esc(src.loc)}）的官方由來">{esc(q)}</span>」')
             else:
@@ -115,10 +138,10 @@ def plain_text(text: str, st: atlas.CharStats) -> str:
     return re.sub(r"\{\{([^{}]*)\}\}", lambda m: atlas.eval_placeholder(m.group(1), st)[0] or "", text)
 
 
-def paragraphs(sec, st, reps) -> str:
+def paragraphs(sec, st, reps, related=()) -> str:
     if not sec:
         return ""
-    return "\n".join(f"<p>{render_text(t, st, reps)}</p>" for _, t in sec.paragraphs)
+    return "\n".join(f"<p>{render_text(t, st, reps, related)}</p>" for _, t in sec.paragraphs)
 
 
 def meaning_html(text: str) -> str:
@@ -150,14 +173,14 @@ def log_entries():
 def basemap_svg(geo: dict) -> str:
     parts = [f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {geo["width"]} {geo["height"]}" '
              f'width="{geo["width"]}" height="{geo["height"]}">',
-             '<g fill="#ebe3d3" stroke="#c4b49b" stroke-width="0.6" stroke-linejoin="round">']
+             f'<g fill="{MAP_LAND}" stroke="{MAP_BORDER}" stroke-width="0.6" stroke-linejoin="round">']
     for c in atlas.COUNTIES:
         if geo["counties"].get(c):
             parts.append(f'<path d="{geo["counties"][c]}"/>')
-    parts.append('</g><g fill="none" stroke="#b3a48b" stroke-width="0.8">')
+    parts.append(f'</g><g fill="none" stroke="{MAP_INSET_BOX}" stroke-width="0.8">')
     for ins in geo["insets"]:
         parts.append(f'<rect x="{ins["x"] - 6}" y="{ins["y"] - 6}" width="{ins["w"] + 12}" height="{ins["h"] + 12}" rx="3"/>')
-    parts.append('</g><g font-family="sans-serif" font-size="12" fill="#7d7266">')
+    parts.append(f'</g><g font-family="sans-serif" font-size="12" fill="{MAP_INSET_LABEL}">')
     for ins in geo["insets"]:
         parts.append(f'<text x="{ins["x"] - 4}" y="{ins["y"] - 10}">{esc(ins["label"])}</text>')
     parts.append("</g></svg>")
@@ -207,7 +230,7 @@ def build_zi(doc: atlas.Doc, docs_by_char: Dict[str, atlas.Doc], out: Path) -> N
                      for m, src in p.real_meanings)
         cards.append(f'<li class="place-card"><h3>{esc(p.name)}</h3><p class="loc">{esc(p.full_loc)}</p>{ms}</li>')
     extra = doc.section("延伸觀察")
-    extra_html = (f'<section class="zi-section"><h2>延伸觀察</h2><div class="prose">{paragraphs(extra, st, reps)}</div></section>'
+    extra_html = (f'<section class="zi-section"><h2>延伸觀察</h2><div class="prose">{paragraphs(extra, st, reps, doc.related)}</div></section>'
                   if extra else "")
     rel = []
     for r in doc.related:
@@ -220,12 +243,12 @@ def build_zi(doc: atlas.Doc, docs_by_char: Dict[str, atlas.Doc], out: Path) -> N
     src_url = f"{atlas.REPO_URL}/blob/main/content/{doc.char}.md"
     body = tpl("zi.html").substitute(
         char=esc(doc.char), cat=esc(doc.get("分類")), title=esc(doc.get("標題")),
-        summary=render_text(doc.get("摘要"), st, reps),
+        summary=render_text(doc.get("摘要"), st, reps, doc.related),
         total=atlas.fmt_int(st.total), share=atlas.fmt_pct(st.total / len(atlas.load_places())),
         with_meaning=atlas.fmt_int(st.with_meaning), with_xy=atlas.fmt_int(st.with_xy),
         map_svg=map_svg(st, "../"), county_table=county_table(st),
-        dist_prose=paragraphs(doc.section("分布"), st, reps),
-        meaning_prose=paragraphs(doc.section("字義"), st, reps),
+        dist_prose=paragraphs(doc.section("分布"), st, reps, doc.related),
+        meaning_prose=paragraphs(doc.section("字義"), st, reps, doc.related),
         cards="".join(cards), extra_section=extra_html, related_section=related_html,
         src_url=src_url, created=esc(doc.get("建立")), updated=esc(doc.get("更新")))
     page(out / "zi" / f"{doc.char}.html", "../", f"{doc.char}：{doc.get('標題')}｜臺灣地名用字地圖",
@@ -234,13 +257,14 @@ def build_zi(doc: atlas.Doc, docs_by_char: Dict[str, atlas.Doc], out: Path) -> N
     data = {}
     for p in st.hits:
         if p.has_xy:
-            data[p.pid] = [p.name, p.full_loc, [[m, s] for m, s in p.real_meanings]]
+            # 只寫了「詳見…」的聚落也照原文給面板顯示（{{有由來}}仍然不算它）
+            data[p.pid] = [p.name, p.full_loc, [[m, s] for m, s in (p.real_meanings or p.meanings)]]
     (out / "data").mkdir(parents=True, exist_ok=True)
     (out / "data" / f"{doc.char}.json").write_text(
         json.dumps(data, ensure_ascii=False, separators=(",", ":"), sort_keys=True), encoding="utf-8")
     pts = [atlas.project_place(p) for p in st.hits if p.has_xy]
     (out / "assets" / "mini").mkdir(parents=True, exist_ok=True)
-    (out / "assets" / "mini" / f"{doc.char}.png").write_bytes(dots_png(pts, 0.4, 1.2, (181, 51, 46), 0.85))
+    (out / "assets" / "mini" / f"{doc.char}.png").write_bytes(dots_png(pts, 0.4, 1.2, MINI_DOT_RGB, 0.85))
 
 
 def build_index(docs: List[atlas.Doc], out: Path) -> None:
@@ -262,7 +286,8 @@ def build_index(docs: List[atlas.Doc], out: Path) -> None:
     pages = {d.char: d.get("標題") for d in docs}
     candidates = sum(1 for ch, n in atlas.char_counts().items() if n >= atlas.MIN_PLACES)
     body = tpl("index.html").substitute(
-        n_places=atlas.fmt_int(len(places)), n_meaning=atlas.fmt_int(sum(p.has_meaning for p in places)),
+        n_raw=atlas.fmt_int(atlas.raw_record_count()), n_places=atlas.fmt_int(len(places)),
+        n_meaning=atlas.fmt_int(sum(p.has_meaning for p in places)),
         n_pages=len(docs), n_candidates=atlas.fmt_int(candidates), chips="".join(chips), cards="".join(cards),
         pages_json=esc(json.dumps(pages, ensure_ascii=False, sort_keys=True), quote=False))
     page(out / "index.html", "", "臺灣地名用字地圖", "一個字一頁，看一個字在臺灣聚落地名裡的分布與官方由來。",
@@ -294,9 +319,11 @@ def build_rank(docs: List[atlas.Doc], out: Path) -> None:
 
 
 def merge_example(places) -> str:
-    """跨最多村里合併成一處的聚落，給關於頁說明合併方式。"""
+    """跨最多村里合併成一處的聚落，給關於頁說明合併方式。
+    同一鄉鎮登記同名的村里可能更多：由來不同的會另算一處，所以句子寫明合併的條件。"""
     p = max(places, key=lambda p: (len(p.more_villages), -int(p.pid[1:])))
-    return f"{esc(p.county + p.town)}有{len(p.more_villages) + 1}個村里都登記了「{esc(p.name)}」"
+    cond = "由來相同" if p.has_meaning else "都沒有由來"
+    return f"{esc(p.county + p.town)}{len(p.more_villages) + 1}個村里登記、{cond}的「{esc(p.name)}」合併成一處"
 
 
 def build_about(docs: List[atlas.Doc], out: Path) -> None:
@@ -331,7 +358,7 @@ def build(out: Path = atlas.DOCS_DIR, quiet: bool = False) -> None:
     geo = json.loads(atlas.GEO_JSON.read_text(encoding="utf-8"))
     (out / "assets" / "basemap.svg").write_text(basemap_svg(geo), encoding="utf-8")
     pts = [atlas.project_place(p) for p in atlas.load_places() if p.has_xy]
-    (out / "assets" / "base-dots.png").write_bytes(dots_png(pts, SCALE, 1.6, (128, 108, 86), 0.24))
+    (out / "assets" / "base-dots.png").write_bytes(dots_png(pts, SCALE, 1.6, BASE_DOT_RGB, 0.24))
     by_char = {d.char: d for d in docs}
     for d in docs:
         build_zi(d, by_char, out)
@@ -340,7 +367,7 @@ def build(out: Path = atlas.DOCS_DIR, quiet: bool = False) -> None:
     build_about(docs, out)
     if not quiet:
         n = sum(1 for _ in out.rglob("*") if _.is_file())
-        print(f"完成：{len(docs)}個字的頁面，docs/ 共{n}個檔案")
+        print(f"完成：{len(docs)}個字的頁面，docs/共{n}個檔案")
 
 
 def main():

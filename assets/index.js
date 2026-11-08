@@ -19,6 +19,7 @@
   const out = document.getElementById("lookup-result");
   const pages = JSON.parse(document.getElementById("pages-data").textContent);
   const min = Number(form.dataset.min);
+  const han = /^[㐀-䶿一-鿿\u{20000}-\u{3134F}]$/u; // 和atlas.py的HAN_RE同一個範圍
   let counts = null;
 
   form.addEventListener("submit", (e) => {
@@ -34,6 +35,10 @@
     }
     if (Array.from(v).length !== 1) {
       out.textContent = "這裡只能查單一個字。";
+      return;
+    }
+    if (!han.test(v)) {
+      out.textContent = "請輸入一個漢字。";
       return;
     }
     (counts ? Promise.resolve(counts) : fetch("data/char-counts.json").then((r) => r.json()).then((d) => (counts = d)))

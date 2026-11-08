@@ -9,6 +9,7 @@
   const dots = svg ? Array.from(svg.querySelectorAll("circle[data-p]")) : [];
   let data = null;
   let current = null;
+  let mark = null; // 選取標記：蓋在選到的點上的圈，見show()
 
   const load = () =>
     data
@@ -27,10 +28,18 @@
   });
 
   function show(c) {
-    if (current) current.classList.remove("on");
     current = c;
-    c.classList.add("on");
-    c.parentNode.appendChild(c); // 選到的點畫在最上層
+    // 選到的點留在原位（移動節點會讓它失去焦點、打亂Tab順序），
+    // 另外在svg最後放一個同位置的圈，畫在所有點上面。
+    if (!mark) {
+      mark = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      mark.setAttribute("class", "on");
+      mark.setAttribute("pointer-events", "none");
+      mark.setAttribute("aria-hidden", "true");
+    }
+    ["cx", "cy", "r"].forEach((a) => mark.setAttribute(a, c.getAttribute(a)));
+    mark.classList.toggle("dim", c.classList.contains("dim"));
+    svg.appendChild(mark);
     const name = panel.querySelector(".pp-name");
     const loc = panel.querySelector(".pp-loc");
     const body = panel.querySelector(".pp-body");
@@ -86,8 +95,8 @@
     });
     panel.querySelector(".pp-close").addEventListener("click", () => {
       panel.hidden = true;
+      if (mark) mark.remove();
       if (current) {
-        current.classList.remove("on");
         current.focus();
         current = null;
       }
@@ -99,6 +108,7 @@
     const highlight = (county) => {
       svg.classList.toggle("filtering", Boolean(county));
       dots.forEach((d) => d.classList.toggle("dim", Boolean(county) && d.dataset.c !== county));
+      if (mark && current) mark.classList.toggle("dim", current.classList.contains("dim")); // 選取標記跟著選到的點變淡
       rows.forEach((tr) => tr.classList.toggle("hl", tr.dataset.c === county));
     };
     rows.forEach((tr) => {

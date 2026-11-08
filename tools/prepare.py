@@ -3,7 +3,7 @@
 用法：
   python3 tools/prepare.py 窩              # 印在畫面上
   python3 tools/prepare.py 窩 --out packs/窩.md
-  python3 tools/prepare.py 窩 --all --out packs/窩.md   # 第5節列出全部候選，不限每縣市6處
+  python3 tools/prepare.py 窩 --all --out packs/窩.md   # 第5節列出全部候選，不限每縣市6處、總共60處
 """
 from __future__ import annotations
 
@@ -25,18 +25,22 @@ MAX_CANDIDATES = 60
 
 
 def theme_words(st: atlas.CharStats, n: int, top: int):
+    """由來裡常出現的n字詞和出現在幾處的由來裡；次數和{{由來含:詞}}的算法相同。"""
     c = Counter()
     for p in st.hits:
         grams = set()
         for m, _ in p.real_meanings:
-            text = "".join(atlas.HAN_RE.findall(m))
+            text = atlas.norm_match(m)           # 在原文上切，不先刪掉數字和標點，才不會拼出原文沒有的詞
             for i in range(len(text) - n + 1):
                 g = text[i:i + n]
+                if not all(atlas.HAN_RE.fullmatch(ch) for ch in g):
+                    continue
                 if st.char in g or any(w in g for w in STOP if len(w) <= n):
                     continue
                 grams.add(g)
         c.update(grams)
-    return [(g, k) for g, k in c.most_common(top) if k >= 3]
+    ranked = sorted(c.items(), key=lambda x: (-x[1], x[0]))     # 同次數照詞排，每次產生的結果都相同
+    return [(g, k) for g, k in ranked[:top] if k >= 3]
 
 
 def pick_candidates(st: atlas.CharStats, show_all: bool = False):
@@ -64,7 +68,7 @@ def pick_candidates(st: atlas.CharStats, show_all: bool = False):
         chosen = []
         for c in order:                      # 每個縣市先放一處
             chosen.append(by_county[c][0])
-        for c in order:                      # 再依縣市數量補到每縣市最多 PER_COUNTY 處
+        for c in order:                      # 再依縣市數量補到每縣市最多PER_COUNTY處、總共最多MAX_CANDIDATES處
             for p in by_county[c][1:PER_COUNTY]:
                 if len(chosen) >= MAX_CANDIDATES:
                     break
@@ -101,9 +105,9 @@ def build_pack(char: str, show_all: bool = False) -> str:
     w(f"| {{{{有座標}}}} | {atlas.fmt_int(st.with_xy)} | {atlas.PH_HELP['有座標']} |")
     w(f"| {{{{缺字}}}} | {atlas.fmt_int(st.missing)} | {atlas.PH_HELP['缺字']} |")
     w("")
-    if st.missing >= atlas.MISSING_NOTE_MIN and st.missing / st.total >= atlas.MISSING_NOTE_RATIO:
+    if st.missing_note:
         w(f"注意：{{{{缺字}}}}占{{{{總數}}}}的{atlas.fmt_pct(st.missing / st.total)}，"
-          "這個字的數量可能偏少；分布段要用{{缺字}}說明（AGENTS.md第6節）。")
+          "這個字的數量可能偏少；分布段要用{{缺字}}說明（AGENTS.md第2節、R11）。")
         w("")
     allowed = st.allowed_counties()
     w("## 2. 各縣市")
@@ -112,7 +116,7 @@ def build_pack(char: str, show_all: bool = False) -> str:
       f"比例前五名，只算至少{atlas.RATIO_MIN_COUNT}處的縣市：{'、'.join(st.top_by_ratio()) or '無'}）。"
       "其他縣市要提，同一段要附上它的{{縣市:X}}或{{比例:X}}。")
     w("")
-    w("| 縣市 | 數量 {{縣市:X}} | 該縣市聚落數 | 比例 {{比例:X}} | 可直接提 |")
+    w("| 縣市 | 數量{{縣市:X}} | 該縣市聚落數 | 比例{{比例:X}} | 可直接提 |")
     w("|---|---|---|---|---|")
     rows = sorted(atlas.COUNTIES, key=lambda c: (-st.by_county[c], atlas.COUNTIES.index(c)))
     for c in rows:
@@ -141,7 +145,8 @@ def build_pack(char: str, show_all: bool = False) -> str:
       + (f"，扣掉地名或村里有缺字（?）、不能當代表地名的{skipped}處，可選的有{len(pool)}處。" if skipped
          else f"，都可以當代表地名。")
       + ("這裡全部列出。" if show_all or len(chosen) == len(pool)
-         else f"這裡每個縣市最多列{PER_COUNTY}處，由來有解釋這個字的排前面；要看全部，加上--all重新產生。"))
+         else f"這裡每個縣市先列1處，再依縣市數量補到每個縣市最多{PER_COUNTY}處、總共最多{MAX_CANDIDATES}處，"
+              "加--all列出全部；由來有解釋這個字的排前面。"))
     w("")
     w("內容檔的代表地名照「- P編號 地名（縣市鄉鎮）」抄寫，例如「- "
       f"{chosen[0].pid} {chosen[0].name}（{chosen[0].loc}）」。" if chosen else "沒有可用的代表地名。")
@@ -163,9 +168,10 @@ def build_pack(char: str, show_all: bool = False) -> str:
 
 def main():
     ap = argparse.ArgumentParser(description="產生一個字的資料包")
-    ap.add_argument("char", help="要做的字，例如 窩")
+    ap.add_argument("char", help="要做的字，例如窩")
     ap.add_argument("--out", help="寫到檔案，不指定就印在畫面上")
-    ap.add_argument("--all", action="store_true", help="第5節列出全部候選代表地名")
+    ap.add_argument("--all", action="store_true",
+                    help=f"第5節列出全部候選代表地名，不限每縣市{PER_COUNTY}處、總共{MAX_CANDIDATES}處")
     args = ap.parse_args()
     char = args.char.strip()
     if not char or not all(atlas.HAN_RE.fullmatch(c) for c in char) or len(char) > 2:
@@ -174,7 +180,7 @@ def main():
     if args.out:
         Path(args.out).parent.mkdir(parents=True, exist_ok=True)
         Path(args.out).write_text(text, encoding="utf-8")
-        print(f"寫入 {args.out}（{len(text):,}字）")
+        print(f"寫入{args.out}（{len(text):,}字）")
     else:
         print(text)
 
