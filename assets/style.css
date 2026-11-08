@@ -151,6 +151,7 @@ p { margin: 0 0 1em; }
 .map { display: block; width: 100%; height: auto; max-height: 82vh; background: var(--sea); border: 1.5px solid var(--grid-faint); }
 .map circle { fill: var(--red); fill-opacity: 0.78; stroke: var(--white); stroke-width: 0.6; cursor: pointer; transition: fill-opacity 0.15s; }
 .map circle:hover, .map circle:focus-visible { fill-opacity: 1; stroke: var(--ink); stroke-width: 1.2; outline: none; }
+.map circle:focus { outline: none; }  /* 點選後焦點留在點上，不畫瀏覽器預設的焦點框；鍵盤焦點用上一行的墨色外框 */
 .map circle.on { fill: var(--ink); fill-opacity: 1; stroke: var(--white); stroke-width: 1.5; }
 .map.filtering circle.dim { fill-opacity: 0.12; }
 .map-figure figcaption { font-size: var(--step--1); color: var(--pencil); margin-top: 0.5rem; }
