@@ -112,7 +112,7 @@ def build_pack(char: str, show_all: bool = False) -> str:
     allowed = st.allowed_counties()
     w("## 2. 各縣市")
     w("")
-    w(f"可以直接提的縣市（數量前五名：{'、'.join(st.top_by_count())}；"
+    w(f"可以直接提的縣市（數量前五名：{'、'.join(st.top_by_count()) or '無'}；"
       f"比例前五名，只算至少{atlas.RATIO_MIN_COUNT}處的縣市：{'、'.join(st.top_by_ratio()) or '無'}）。"
       "其他縣市要提，同一段要附上它的{{縣市:X}}或{{比例:X}}。")
     w("")

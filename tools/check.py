@@ -13,6 +13,7 @@ import filecmp
 import re
 import sys
 import tempfile
+import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
 from datetime import date
@@ -32,11 +33,11 @@ CN_NUM = "一二三四五六七八九十百千萬兩幾"
 # 「第二個」「第十二個」這類序數才不會從中間的「二個」開始比對
 CN_QTY_RE = re.compile(
     rf"(?<![第{CN_NUM}])(?:[{CN_NUM}]+[多餘]?(?:處|個|筆|座|成|倍|縣市|縣|市|鄉|鎮)|一半|[{CN_NUM}]+分之)")
-LONE_ONE_RE = re.compile(r"一(?:處|個|筆|座|縣市|縣|市|鄉|鎮)")       # 前面是「每」「同」時（每一處、同一個）不是在講數量
-LONE_ONE_OK = ("每", "同")
-# 一個標記代表兩個縣市（鄉鎮）：副詞和標記之間可以隔0–4個不是標點的字，例如「都超過{{比例:A}}」
+LONE_ONE_RE = re.compile(r"一(?:處|個|筆|座|縣市|縣|市|鄉|鎮)")
+LONE_ONE_OK = ("每", "同", "另", "其中", "這", "那")     # 每一處、同一個、另一個、其中一處：是指稱，不是在講數量
+# 一個標記代表兩個縣市（鄉鎮）：副詞和標記之間可以隔0–4個不是標點的字，例如「都超過{{比例:A}}」「分別有{{縣市:A}}處」
 SHARED_PH_RE = re.compile(
-    r"(皆|都|均|各|同樣|一樣)[^，。、：；！？「」『』（）{}｛｝\s]{0,4}\{\{\s*(縣市|比例|占總數|鄉鎮)\s*[:：]([^{}]*)\}\}")
+    r"(皆|都|均|各|分別|同樣|一樣)[^，。、：；！？「」『』（）{}｛｝\s]{0,4}\{\{\s*(縣市|比例|占總數|鄉鎮)\s*[:：]([^{}]*)\}\}")
 RANK_SENT_RE = re.compile(r"[^。！？]*[。！？]?")      # R21的句子只用。！？切，分句再用，：；切
 CJK = r"㐀-鿿"
 SHORT_COUNTIES = ["基隆", "臺北", "台北", "新北", "桃園", "新竹", "苗栗", "臺中", "台中", "彰化", "南投", "雲林", "嘉義",
@@ -51,20 +52,24 @@ HINTS = {
     "R02": "前置資料照AGENTS.md第5.1節：兩條---之間，一行一個「欄位: 值」。",
     "R03": "換一個資料裡至少有20處的字（用tools/prepare.py看數量）。",
     "R04": "分類只能用：" + "、".join(atlas.CATEGORIES) + "。",
-    "R05": "標題最多12字、不加標點；摘要只寫一句、以「。」結尾、最多60字。",
+    "R05": "標題最多12字，不加標點和符號，也不寫數字標記；摘要只寫一句、以「。」結尾、最多60字（數字標記算2字）。",
     "R06": "相關字用「、」分隔，每個是單一漢字，不能和本字相同，而且資料裡至少20處（以後才能做成頁面）。",
     "R07": "日期寫成YYYY-MM-DD，更新日期不能早於建立日期。",
     "R08": "段落只能是「## 字義」「## 分布」「## 代表地名」「## 延伸觀察」，照這個順序，前三個必填。",
     "R09": "字義80–300字、分布60–300字、延伸觀察最多300字（數字標記算2字）。",
     "R10": "代表地名3–6個，每行「- P編號 地名（縣市鄉鎮）」，從資料包第5節抄；要含本字、有由來、至少兩個縣市，地名和村里沒有缺字（?）。",
     "R11": "只能用AGENTS.md第5.3節的數字標記，縣市寫全名、鄉鎮寫成縣市＋鄉鎮；一個標記只代表它寫的縣市，兩個縣市要各寫一個；資料包提醒缺字偏多時，分布段要用{{缺字}}說明。",
-    "R12": "數量一律用數字標記；年代等數字只能出現在「」逐字引用裡；不要寫「三百多處」「九成」這類國字數量。地名和引文裡的國字照寫，「每一處」「同一個」可以寫；要說幾個縣市，就直接列出縣市名。",
-    "R13": "「」裡只能放：本字、單一漢字、相關字、資料裡的地名、同一段{{由來含:詞}}的詞，或本頁代表地名由來的逐字片段（原文的「」改成『』）；引文要接在它出自的那一處後面，不要引用有缺字（?）的片段。",
+    "R12": "數量一律用數字標記；年代等數字只能出現在「」逐字引用裡；不要寫「三百多處」「九成」這類國字數量。地名和引文裡的國字照寫，「每一處」「同一個」「另一個」「其中一處」可以寫；要說幾個縣市，就直接列出縣市名；"
+           "沒有標記可用的數量（例如「兩個意思」）改成不寫數量的說法。",
+    "R13": "「」裡只能放：本字、單一漢字、相關字、資料裡的聚落地名、同一段{{由來含:詞}}的詞，或本頁代表地名由來的逐字片段（原文的「」改成『』，資料包裡表示換行的「／」不要放進來）；"
+           "引文要接在它出自的那一處後面（同一段裡先寫那一處的地名），不要引用有缺字（?）的片段。",
     "R14": "縣市寫全名；摘要、分布、延伸觀察提到資料包標「可直接提」以外的縣市，同一段要附上它的{{縣市:X}}或{{比例:X}}（同一段有{{鄉鎮:X}}標記的鄉鎮名稱不算）。",
     "R15": "用到" + "、".join(PROPORTION_WORDS) + "的句子，要有數字標記支撐。",
     "R16": "用「臺」不用「台」；中文和英數字、數字標記之間不空格；用全形標點；不要HTML、Markdown粗體、連結、emoji；「番」「山胞」「土著」只出現在引號裡。",
     "R20": "AGENTS.md第5.5節的範例要和content/窩.md完全相同；第2節的筆數和第5.3節例子的值要和資料一致；第6節R15的詞要和check.py一致。改了其中一邊就同步另一邊。",
-    "R21": "「最多」「最高」「最少」「最低」說的縣市或鄉鎮，要和資料包第2、3節的表一致（比例只算至少5處的縣市）；並列的都要寫出來。",
+    "R21": "「最多」「最高」「最少」「最低」說的縣市或鄉鎮，要和資料包第2、3節的表一致（比例只算至少5處的縣市）；"
+           "寫了幾個就要是前幾名，並列的都要寫出來。講鄉鎮名次時，每個鄉鎮寫縣市＋鄉鎮的全名和{{鄉鎮:…}}，"
+           "和這個詞寫在同一個分句（「，」「；」分開的是不同分句，「最多的是：」後面接的那一段算同一個）。",
     "R17": "在log.md最後加一筆「## [YYYY-MM-DD] 新增｜<字>」，修改既有字用「## [YYYY-MM-DD] 修改｜<字>」；"
            "下一行用「- 」寫一句說明，日期依序往下。動作只用" + LOG_ACTIONS + "。",
     "R18": "不要修改data/raw/的檔案；若是換新版資料，照AGENTS.md第9節更新data/SOURCE.md。",
@@ -117,7 +122,7 @@ def names_re(names) -> Optional[re.Pattern]:
 
 
 def spans(text: str, delims: str):
-    """依delims切開，回傳每一段的(起點, 終點)，不含切開用的標點，和re.split的切法相同。"""
+    """依delims切開，回傳每一段的（起點、終點），不含切開用的標點，和re.split的切法相同。"""
     out, start = [], 0
     for m in re.finditer(f"[{delims}]", text):
         out.append((start, m.start()))
@@ -230,8 +235,10 @@ def check_doc(path: Path) -> List[Problem]:
         ln = doc.meta["標題"][1]
         if len(title) > 12:
             add(ln, "R05", f"標題有{len(title)}字，最多12字")
-        if re.search(r"[，。、：；！？「」『』（）,.:;!?(){}｛｝]", title):     # 含{}：標題不寫數字標記
-            add(ln, "R05", "標題不加標點")
+        if re.search(r"[{}｛｝]", title):
+            add(ln, "R05", "標題不能寫數字標記，也不寫數量")
+        elif any(unicodedata.category(ch)[0] in "PS" for ch in title):     # 標點（P）和符號（S）
+            add(ln, "R05", "標題不加標點和符號")
     summary = doc.get("摘要")
     if summary:
         ln = doc.meta["摘要"][1]
@@ -350,7 +357,7 @@ def check_doc(path: Path) -> List[Problem]:
             kind, sep, arg = k.replace("：", ":").partition(":")
             if sep and kind.strip() == "由來含":
                 terms.add(arg.strip())
-        # R13：在整段文字上找引號；引文要比對前面最近提到的代表地名（可以跨句，不跨段）。
+        # R13：在整段文字上找引號；引文要比對前面最近提到的代表地名（可以跨句，不跨段），前面沒有代表地名也算錯。
         # 引號內容剛好是代表地名時（例如含「番」的地名只能寫在引號裡），這個引號也算提到那一處。
         plain = mask_ph(masked)
         quotes = list(QUOTE_RE.finditer(text))
@@ -371,12 +378,14 @@ def check_doc(path: Path) -> List[Problem]:
                 add(ln, "R13", f"引號內的文字在代表地名的由來裡找不到：「{q}」")
                 continue
             prior = [(pos, name) for pos, name in mentions if pos < qm.start()]
-            if prior:
-                pos, name = prior[-1]
-                cands = pick_place(rep_by_name[name], plain[:pos])
-                if not any(nq in atlas.norm_match(m) for p in cands for m, _ in p.real_meanings):
-                    label = cands[0].loc + name if len(cands) == 1 < len(rep_by_name[name]) else name
-                    add(ln, "R13", f"「{q}」不在前面提到的{label}的由來裡；引文要接在它出自的那一處後面")
+            if not prior:
+                add(ln, "R13", f"「{q}」前面沒有寫出自哪一處；引文要接在它出自的那一處後面")
+                continue
+            pos, name = prior[-1]
+            cands = pick_place(rep_by_name[name], plain[:pos])
+            if not any(nq in atlas.norm_match(m) for p in cands for m, _ in p.real_meanings):
+                label = cands[0].loc + name if len(cands) == 1 < len(rep_by_name[name]) else name
+                add(ln, "R13", f"「{q}」不在前面提到的{label}的由來裡；引文要接在它出自的那一處後面")
         check_numbers(ln, where, text, add)                           # R12
         check_shared(ln, masked, add)                                 # R11
         bare = strip_ph(strip_quotes(text))
@@ -416,7 +425,7 @@ RANK_WORDS = {"最多": ("count", "top"), "最少": ("count", "bottom"), "最高
 
 def rank_set_ok(claimed: List[str], values: dict, end: str):
     """claimed是不是數值前（或後）len(claimed)名；並列的都要寫出來，少寫一個也不成立。
-    回傳（是否成立, 正確的名單，含全部並列者）。"""
+    回傳（是否成立、正確的名單），名單含全部並列者。"""
     k = len(claimed)
     ordered = sorted(values, key=lambda x: -values[x] if end == "top" else values[x])
     if not ordered:
@@ -434,51 +443,86 @@ def rank_message(word: str, what: str, claimed: List[str], right: List[str], lab
     return f"「{word}」{what}寫的是{'、'.join(claimed)}，{but}{label}{'、'.join(right)}"
 
 
+@lru_cache(maxsize=1)
+def bare_town_re() -> Optional[re.Pattern]:
+    """只寫鄉鎮、沒寫縣市的名稱（例如芎林鄉）。"""
+    return names_re(p.town for p in atlas.load_places() if p.town)
+
+
+def clause_names(clause: str):
+    """R21的一個分句：回傳（遮掉鄉鎮全名後的文字、鄉鎮、沒有標記的鄉鎮全名、只寫鄉鎮名的、縣市）。
+    鄉鎮看{{鄉鎮:…}}標記和「縣市＋鄉鎮」全名；鄉鎮全名裡的縣市不算縣市。"""
+    plain = strip_quotes(clause)
+    found = []                                      # （位置、鄉鎮、是不是標記）
+    for m in atlas.PH_RE.finditer(plain):
+        kind, sep, arg = m.group(1).replace("：", ":").partition(":")
+        if sep and kind.strip() == "鄉鎮":
+            found.append((m.start(), arg.strip(), True))
+    words = mask_ph(plain)
+    for m in town_re().finditer(words):
+        found.append((m.start(), m.group(0), False))
+    words = mask_names(words, town_re())
+    found.sort()
+    tw = unique(t for _, t, _ in found)
+    marked = {t for _, t, is_mark in found if is_mark}
+    no_mark = unique(t for _, t, is_mark in found if not is_mark and t not in marked)
+    bare = unique(bare_town_re().findall(words)) if bare_town_re() else []
+    cs = sorted({c for c in atlas.COUNTIES if c in words}, key=words.index)
+    return words, tw, no_mark, bare, cs
+
+
 def check_ranks(doc: atlas.Doc, st: Optional[atlas.CharStats], add) -> None:
-    """R21：「最多」「最高」說的縣市、鄉鎮要和資料一致，並列的都要寫出來。
-    句子只用。！？切，分句用，：；切（「；比例也最高」沿用同一句前一分句的縣市）；引號裡的字先換成〇。
-    分句裡的鄉鎮看{{鄉鎮:…}}標記和「縣市＋鄉鎮」全名，鄉鎮全名裡的縣市不算縣市名次。"""
+    """R21：「最多」「最高」說的縣市、鄉鎮要和資料一致，寫了幾個就要是前幾名，並列的都要寫出來。
+    摘要和字義、分布、延伸觀察都查。句子只用。！？切，分句用，：；切；引號裡的字先換成〇。
+    - 「；比例也最高」這種沒寫名稱的分句，沿用同一句前面分句的縣市；前面講的是鄉鎮時不沿用，要寫在同一分句。
+    - 「最多的是：」後面接的分句，當成同一個分句。
+    - 鄉鎮看{{鄉鎮:…}}標記和「縣市＋鄉鎮」全名；只寫鄉鎮名（芎林鄉）、或分句裡有「鄉鎮」卻沒有全名時報錯。"""
     if st is None:
         return
     counts = {c: n for c, n in st.by_county.items() if n > 0}
     ratios = {c: st.ratio(c) for c, n in st.by_county.items() if n >= atlas.RATIO_MIN_COUNT}
     towns = dict(st.by_town)
+
+    def full_names(bare):
+        out = []
+        for b in bare:
+            full = [t for t in towns if t.endswith(b)]
+            out.append(f"{b}（{'或'.join(full)}）" if full else b)
+        return "、".join(out)
+
     for ln, where, text in prose_blocks(doc):
-        if where not in ("摘要", "分布", "延伸觀察"):
-            continue
         for sent in RANK_SENT_RE.findall(mask_quotes(text)):
-            prev: List[str] = []
-            for clause in re.split(r"[，：；]", sent):
-                plain = strip_quotes(clause)
-                found = []                                  # (位置, 鄉鎮, 是不是標記)
-                for m in atlas.PH_RE.finditer(plain):
-                    kind, sep, arg = m.group(1).replace("：", ":").partition(":")
-                    if sep and kind.strip() == "鄉鎮":
-                        found.append((m.start(), arg.strip(), True))
-                words = mask_ph(plain)
-                for m in town_re().finditer(words):
-                    found.append((m.start(), m.group(0), False))
-                words = mask_names(words, town_re())        # 鄉鎮全名裡的縣市不算
-                found.sort()
-                tw = unique(t for _, t, _ in found)
-                marked = {t for _, t, is_mark in found if is_mark}
-                no_mark = unique(t for _, t, is_mark in found if not is_mark and t not in marked)
-                cs = sorted({c for c in atlas.COUNTIES if c in words}, key=words.index)
+            parts = re.split(r"([，：；])", sent)
+            info = [clause_names(c) for c in parts[0::2]]
+            seps = parts[1::2] + [""]
+            prev: List[str] = []            # 同一句前面分句的縣市
+            prev_town = False               # 同一句前面最近有名稱的分句講的是鄉鎮
+            for i, (words, tw, no_mark, bare, cs) in enumerate(info):
                 for word, (metric, end) in RANK_WORDS.items():
                     if word not in words:
                         continue
-                    if no_mark:
+                    c_tw, c_no, c_bare, c_cs = tw, no_mark, bare, cs
+                    if not (tw or bare or cs) and seps[i] == "：" and i + 1 < len(info):
+                        _, c_tw, c_no, c_bare, c_cs = info[i + 1]      # 「最多的是：」後面接的分句
+                    if c_bare:
+                        add(ln, "R21", f"講鄉鎮名次要寫縣市＋鄉鎮的全名，並附{{{{鄉鎮:…}}}}：{full_names(c_bare)}")
+                        continue
+                    if c_no:
                         add(ln, "R21", f"講鄉鎮名次要給每個鄉鎮各寫一個{{{{鄉鎮:縣市鄉鎮}}}}，和「{word}」寫在同一個分句"
-                            f"（沒有標記的：{'、'.join(no_mark)}）")
+                            f"（這個分句裡沒有標記的：{'、'.join(c_no)}；寫在別的分句的不算）")
                         continue
                     if metric == "count" and "比例" in words:
                         metric = "ratio"
-                    if tw and ("鄉鎮" in words or not cs):
-                        ok, right = rank_set_ok(tw, towns, end)
+                    if c_tw and ("鄉鎮" in words or not c_cs):
+                        ok, right = rank_set_ok(c_tw, towns, end)
                         if not ok:
-                            add(ln, "R21", rank_message(word, "的鄉鎮", tw, right, "資料裡是"))
+                            add(ln, "R21", rank_message(word, "的鄉鎮", c_tw, right, "資料裡是"))
                         continue
-                    claimed = cs or prev
+                    if not c_cs and ("鄉鎮" in words or prev_town):
+                        add(ln, "R21", f"講鄉鎮名次時，鄉鎮的全名和{{{{鄉鎮:…}}}}要和「{word}」寫在同一個分句，"
+                            "例如「鄉鎮以新竹縣芎林鄉的{{鄉鎮:新竹縣芎林鄉}}處最多」")
+                        continue
+                    claimed = c_cs or prev
                     if not claimed:
                         continue
                     values = ratios if metric == "ratio" else counts
@@ -490,7 +534,10 @@ def check_ranks(doc: atlas.Doc, st: Optional[atlas.CharStats], add) -> None:
                     if not ok:
                         name = "比例" if metric == "ratio" else "數量"
                         add(ln, "R21", rank_message(word, "", claimed, right, f"{name}{word}的是", "但"))
-                prev = cs or prev
+                if cs:
+                    prev, prev_town = cs, False
+                elif tw or bare:
+                    prev, prev_town = [], True
 
 
 @lru_cache(maxsize=1)
@@ -503,7 +550,7 @@ def numeral_place_names() -> List[str]:
 
 
 def check_numbers(ln: int, where: str, text: str, add) -> None:
-    """R12：直接寫出的數字和國字數量；引號裡和地名裡的不算，「每一處」「同一個」不算。"""
+    """R12：直接寫出的數字和國字數量；引號裡和地名裡的不算，「每一處」「另一個」這類指稱不算。"""
     bare = strip_ph(strip_quotes(text))
     for m in re.finditer(r"[0-9０-９]+", bare):
         add(ln, "R12", f"{where}裡有直接寫出的數字「{m.group(0)}」")
@@ -512,7 +559,7 @@ def check_numbers(ln: int, where: str, text: str, add) -> None:
         if n in cn:
             cn = cn.replace(n, "〇" * len(n))
     for m in CN_QTY_RE.finditer(cn):
-        if LONE_ONE_RE.fullmatch(m.group(0)) and cn[m.start() - 1:m.start()] in LONE_ONE_OK:
+        if LONE_ONE_RE.fullmatch(m.group(0)) and cn[:m.start()].endswith(LONE_ONE_OK):
             continue
         add(ln, "R12", f"{where}裡用國字寫數量「{m.group(0)}」")
 
@@ -543,6 +590,11 @@ def check_shared(ln: int, masked: str, add) -> None:
                 if found:
                     break
             if len(found) >= 2:
+                stop = re.search(r"[，：；。！？]", masked[m.end():b])
+                rest = masked[m.start():m.end() + stop.start() if stop else b]
+                same = [k for k in atlas.PH_RE.findall(rest) if k.replace("：", ":").partition(":")[0].strip() == kind]
+                if len(same) >= len(found):
+                    continue            # 「A、B分別有{{縣市:A}}處和{{縣市:B}}處」：同一分句裡標記和名稱一樣多
                 unit = "鄉鎮" if kind == "鄉鎮" else "縣市"
                 add(ln, "R11", f"「{masked[m.start():m.start(3)]}…」：一個數字標記只代表它寫的{unit}，兩個{unit}要各寫一個標記")
 
